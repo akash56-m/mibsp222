@@ -1,0 +1,350 @@
+/*
+ * MIBSP - Municipal Integrity & Bribe-Free Service Portal
+ * Custom Stylesheet
+ */
+
+/* ==========================================================================
+   CSS Variables
+   ========================================================================== */
+:root {
+    --primary-color: #1a56db;
+    --primary-light: #e8f0fe;
+    --secondary-color: #64748b;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #06b6d4;
+    
+    --bg-body: #f8fafc;
+    --bg-card: #ffffff;
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
+    
+    --border-radius: 12px;
+    --border-radius-sm: 8px;
+    --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --box-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12);
+    
+    --font-heading: 'Poppins', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}
+
+/* ==========================================================================
+   Base Styles
+   ========================================================================== */
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-body);
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Hero Section
+   ========================================================================== */
+.hero-section {
+    background: linear-gradient(135deg, var(--primary-light) 0%, #f0f4ff 100%);
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+}
+
+.hero-content {
+    padding: 2rem 0;
+}
+
+.stats-card {
+    background: var(--bg-card);
+    border-radius: var(--border-radius);
+}
+
+.stat-number {
+    color: var(--primary-color);
+}
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+.card {
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--box-shadow-lg);
+}
+
+.process-card:hover,
+.dept-card:hover {
+    transform: translateY(-3px);
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+.btn {
+    border-radius: var(--border-radius-sm);
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #164bc7;
+    border-color: #164bc7;
+    transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Forms
+   ========================================================================== */
+.form-control,
+.form-select {
+    border-radius: var(--border-radius-sm);
+    border: 1px solid #e2e8f0;
+    padding: 0.625rem 1rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.1);
+}
+
+.input-group-text {
+    background-color: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+/* ==========================================================================
+   Badges
+   ========================================================================== */
+.badge {
+    font-weight: 500;
+    padding: 0.5em 0.75em;
+}
+
+.badge-pending {
+    background-color: var(--warning-color);
+    color: #000;
+}
+
+.badge-review {
+    background-color: var(--info-color);
+    color: #fff;
+}
+
+.badge-action {
+    background-color: var(--primary-color);
+    color: #fff;
+}
+
+.badge-closed {
+    background-color: var(--success-color);
+    color: #fff;
+}
+
+/* ==========================================================================
+   Navigation
+   ========================================================================== */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.navbar-brand {
+    font-family: var(--font-heading);
+}
+
+.nav-link {
+    font-weight: 500;
+    padding: 0.5rem 1rem !important;
+}
+
+.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-sm);
+}
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+.table {
+    font-size: 0.9375rem;
+}
+
+.table th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(26, 86, 219, 0.02);
+}
+
+/* ==========================================================================
+   Alerts
+   ========================================================================== */
+.alert {
+    border-radius: var(--border-radius-sm);
+    border: none;
+}
+
+.alert-info {
+    background-color: rgba(6, 182, 212, 0.1);
+    color: #0e7490;
+}
+
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #92400e;
+}
+
+/* ==========================================================================
+   Tracking ID Display
+   ========================================================================== */
+.tracking-id {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+}
+
+.tracking-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border: 2px dashed var(--primary-color);
+}
+
+/* ==========================================================================
+   Progress Bars
+   ========================================================================== */
+.progress {
+    border-radius: 999px;
+    background-color: #e2e8f0;
+}
+
+.progress-bar {
+    border-radius: 999px;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+footer {
+    margin-top: auto;
+}
+
+footer a:hover {
+    color: #fff !important;
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+.min-vh-75 {
+    min-height: 75vh;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #3b82f6 100%);
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+@media print {
+    .navbar,
+    footer,
+    .btn {
+        display: none !important;
+    }
+    
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+@media (max-width: 768px) {
+    .hero-section {
+        min-height: auto;
+        padding: 3rem 0;
+    }
+    
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .stats-card {
+        margin-top: 2rem;
+    }
+}
+
+/* ==========================================================================
+   Dark Mode Support (Future)
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+    /* Reserved for future dark mode implementation */
+}
+
+/* ==========================================================================
+   Footer Styles
+   ========================================================================== */
+.footer-link:hover {
+    color: #ffffff !important;
+    padding-left: 4px;
+    transition: all 0.2s ease;
+}
+
+footer .text-secondary {
+    color: #9ca3af !important;
+}
+
+footer h5,
+footer h6 {
+    letter-spacing: 0.3px;
+}

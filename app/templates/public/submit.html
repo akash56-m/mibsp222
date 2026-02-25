@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Complaint{% endblock %}
+
+{% block content %}
+<div class="py-5 bg-light">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('public.index') }}">Home</a></li>
+                <li class="breadcrumb-item active">Submit Complaint</li>
+            </ol>
+        </nav>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-primary text-white py-4">
+                        <h4 class="mb-0"><i class="fas fa-edit me-2"></i>Submit Anonymous Complaint</h4>
+                        <p class="mb-0 mt-2 opacity-75">Your identity will not be recorded. All fields are required unless marked optional.</p>
+                    </div>
+                    <div class="card-body p-4 p-md-5">
+                        <form method="POST" action="{{ url_for('public.submit_complaint') }}" enctype="multipart/form-data" id="complaintForm">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <!-- Department Selection -->
+                            <div class="mb-4">
+                                <label for="department_id" class="form-label fw-semibold">
+                                    <i class="fas fa-building me-2 text-primary"></i>Select Department
+                                </label>
+                                <select class="form-select form-select-lg" id="department_id" name="department_id" required>
+                                    <option value="">-- Choose Department --</option>
+                                    {% for dept in departments %}
+                                    <option value="{{ dept.id }}" {% if form_data and form_data.department_id|int == dept.id %}selected{% endif %}>
+                                        {{ dept.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Select the department related to your complaint.</div>
+                            </div>
+                            
+                            <!-- Service Selection -->
+                            <div class="mb-4">
+                                <label for="service_id" class="form-label fw-semibold">
+                                    <i class="fas fa-cog me-2 text-primary"></i>Select Service
+                                </label>
+                                <select class="form-select form-select-lg" id="service_id" name="service_id" required disabled>
+                                    <option value="">-- First Select Department --</option>
+                                </select>
+                                <div class="form-text">Services will load automatically based on department selection.</div>
+                            </div>
+                            
+                            <!-- Description -->
+                            <div class="mb-4">
+                                <label for="description" class="form-label fw-semibold">
+                                    <i class="fas fa-align-left me-2 text-primary"></i>Complaint Description
+                                </label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="description" 
+                                    name="description" 
+                                    rows="6" 
+                                    required
+                                    minlength="50"
+                                    maxlength="5000"
+                                    placeholder="Describe your complaint in detail. Include dates, locations, and any relevant information..."
+                                >{% if form_data %}{{ form_data.description }}{% endif %}</textarea>
+                                <div class="d-flex justify-content-between mt-2">
+                                    <div class="form-text">Minimum 50 characters required.</div>
+                                    <div class="form-text"><span id="charCount">0</span> / 5000</div>
+                                </div>
+                            </div>
+                            
+                            <!-- File Upload -->
+                            <div class="mb-4">
+                                <label for="evidence" class="form-label fw-semibold">
+                                    <i class="fas fa-paperclip me-2 text-primary"></i>Evidence (Optional)
+                                </label>
+                                <input 
+                                    type="file" 
+                                    class="form-control" 
+                                    id="evidence" 
+                                    name="evidence"
+                                    accept=".pdf,.png,.jpg,.jpeg"
+                                >
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Allowed: PDF, PNG, JPG (Max 16MB)
+                                </div>
+                            </div>
+                            
+                            <!-- Privacy Notice -->
+                            <div class="alert alert-info d-flex mb-4">
+                                <i class="fas fa-info-circle fa-lg me-3 mt-1"></i>
+                                <div>
+                                    <strong>Privacy Notice:</strong>
+                                    <p class="mb-0">Your complaint is completely anonymous. We do not collect or store any personal information including your IP address, name, phone number, or email.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Submit Button -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{{ url_for('public.index') }}" class="btn btn-outline-secondary btn-lg">
+                                    Cancel
+                                </a>
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit Complaint
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const departmentSelect = document.getElementById('department_id');
+    const serviceSelect = document.getElementById('service_id');
+    const description = document.getElementById('description');
+    const charCount = document.getElementById('charCount');
+    const form = document.getElementById('complaintForm');
+    
+    // Character counter
+    description.addEventListener('input', function() {
+        charCount.textContent = this.value.length;
+    });
+    
+    // Initialize character count
+    charCount.textContent = description.value.length;
+    
+    // Load services when department changes
+    departmentSelect.addEventListener('change', function() {
+        const deptId = this.value;
+        
+        if (!deptId) {
+            serviceSelect.innerHTML = '<option value="">-- First Select Department --</option>';
+            serviceSelect.disabled = true;
+            return;
+        }
+        
+        // Fetch services
+        fetch(`/api/services/${deptId}`)
+            .then(response => response.json())
+            .then(services => {
+                serviceSelect.innerHTML = '<option value="">-- Select Service --</option>';
+                services.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service.id;
+                    option.textContent = service.name;
+                    serviceSelect.appendChild(option);
+                });
+                serviceSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error loading services:', error);
+                serviceSelect.innerHTML = '<option value="">-- Error loading services --</option>';
+            });
+    });
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const desc = description.value.trim();
+        
+        if (desc.length < 50) {
+            e.preventDefault();
+            alert('Description must be at least 50 characters.');
+            description.focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+    });
+    
+    // File size validation
+    document.getElementById('evidence').addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            const maxSize = 16 * 1024 * 1024; // 16MB
+            if (file.size > maxSize) {
+                alert('File size must be less than 16MB.');
+                this.value = '';
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

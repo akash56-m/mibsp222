@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}Complaint {{ complaint.tracking_id }}{% endblock %}
+
+{% block content %}
+<div class="py-4 bg-light">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('officer.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">{{ complaint.tracking_id }}</li>
+            </ol>
+        </nav>
+        
+        <div class="row g-4">
+            <!-- Main Complaint Info -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">Complaint Details</h5>
+                                <code class="text-primary">{{ complaint.tracking_id }}</code>
+                            </div>
+                            <span class="badge bg-{{ complaint.status|status_badge }} fs-6 px-3 py-2">
+                                {{ complaint.status }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Description -->
+                        <div class="mb-4">
+                            <h6 class="fw-semibold mb-2">Description</h6>
+                            <div class="p-3 bg-light rounded-3">
+                                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ complaint.description }}</pre>
+                            </div>
+                        </div>
+                        
+                        <!-- Details Grid -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Department</small>
+                                    <strong>{{ complaint.department.name }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Service</small>
+                                    <strong>{{ complaint.service.name }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Submitted</small>
+                                    <strong>{{ complaint.submitted_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Last Updated</small>
+                                    <strong>{{ complaint.updated_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Evidence -->
+                        {% if complaint.evidence_path %}
+                        <div class="mb-4">
+                            <h6 class="fw-semibold mb-2">Evidence</h6>
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-paperclip me-1"></i>File attached
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Resolution Notes -->
+                        {% if complaint.resolution_notes %}
+                        <div class="mb-4">
+                            <h6 class="fw-semibold mb-2">Investigation Notes</h6>
+                            <div class="p-3 bg-light rounded-3">
+                                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ complaint.resolution_notes }}</pre>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Update Status -->
+                {% if complaint.can_transition_to('Under Review') or complaint.can_transition_to('Action Taken') or complaint.can_transition_to('Closed') %}
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0"><i class="fas fa-edit me-2 text-primary"></i>Update Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('officer.update_status', tracking_id=complaint.tracking_id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">New Status</label>
+                                <select class="form-select" name="status" required>
+                                    <option value="">-- Select New Status --</option>
+                                    {% if complaint.can_transition_to('Under Review') %}
+                                    <option value="Under Review">Under Review</option>
+                                    {% endif %}
+                                    {% if complaint.can_transition_to('Action Taken') %}
+                                    <option value="Action Taken">Action Taken</option>
+                                    {% endif %}
+                                    {% if complaint.can_transition_to('Closed') %}
+                                    <option value="Closed">Closed</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" name="notes" rows="3" placeholder="Add notes about this status change..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Update Status
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Quick Actions -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Add Notes -->
+                        <form method="POST" action="{{ url_for('officer.add_notes', tracking_id=complaint.tracking_id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-3">
+                                <label class="form-label">Add Investigation Notes</label>
+                                <textarea class="form-control" name="notes" rows="3" placeholder="Enter your notes..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-plus me-2"></i>Add Notes
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Audit Trail -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0"><i class="fas fa-history me-2 text-info"></i>Activity Log</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if audit_logs %}
+                        <div class="list-group list-group-flush">
+                            {% for log in audit_logs %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between">
+                                    <small class="fw-semibold">{{ log.action }}</small>
+                                    <small class="text-muted">{{ log.timestamp|format_datetime('%d %b %H:%M') }}</small>
+                                </div>
+                                <small class="text-muted">by {{ log.username }}</small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted small mb-0">No activity recorded yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

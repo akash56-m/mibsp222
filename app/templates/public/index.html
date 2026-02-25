@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section py-5">
+    <div class="container">
+        <div class="row align-items-center min-vh-75">
+            <div class="col-lg-6">
+                <div class="hero-content">
+                    <div class="badge bg-primary bg-opacity-10 text-primary mb-3 px-3 py-2">
+                        <i class="fas fa-shield-alt me-2"></i>Government of India Initiative
+                    </div>
+                    <h1 class="display-4 fw-bold mb-4">
+                        Report Corruption.<br>
+                        <span class="text-primary">Demand Accountability.</span>
+                    </h1>
+                    <p class="lead text-muted mb-4">
+                        Submit complaints completely anonymously. No login required. 
+                        No personal information collected. Track your complaint with a 
+                        unique tamper-proof ID.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3 mb-4">
+                        <a href="{{ url_for('public.submit_complaint') }}" class="btn btn-primary btn-lg px-4">
+                            <i class="fas fa-edit me-2"></i>Submit Complaint
+                        </a>
+                        <a href="{{ url_for('public.track_complaint') }}" class="btn btn-outline-primary btn-lg px-4">
+                            <i class="fas fa-search me-2"></i>Track Complaint
+                        </a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-4 text-muted">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-lock text-success me-2"></i>
+                            <small>100% Secure</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-user-secret text-success me-2"></i>
+                            <small>Anonymous</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-chart-line text-success me-2"></i>
+                            <small>Transparent</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="hero-image text-center">
+                    <div class="stats-card bg-white rounded-4 shadow-lg p-4">
+                        <h5 class="mb-4">Portal Statistics</h5>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="stat-item text-center p-3 bg-light rounded-3">
+                                    <div class="stat-icon text-primary mb-2">
+                                        <i class="fas fa-file-alt fa-2x"></i>
+                                    </div>
+                                    <div class="stat-number h3 fw-bold mb-0">{{ stats.total }}</div>
+                                    <div class="stat-label small text-muted">Total Complaints</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-item text-center p-3 bg-light rounded-3">
+                                    <div class="stat-icon text-warning mb-2">
+                                        <i class="fas fa-clock fa-2x"></i>
+                                    </div>
+                                    <div class="stat-number h3 fw-bold mb-0">{{ stats.pending }}</div>
+                                    <div class="stat-label small text-muted">Pending</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-item text-center p-3 bg-light rounded-3">
+                                    <div class="stat-icon text-info mb-2">
+                                        <i class="fas fa-tasks fa-2x"></i>
+                                    </div>
+                                    <div class="stat-number h3 fw-bold mb-0">{{ stats.under_review + stats.action_taken }}</div>
+                                    <div class="stat-label small text-muted">In Progress</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-item text-center p-3 bg-light rounded-3">
+                                    <div class="stat-icon text-success mb-2">
+                                        <i class="fas fa-check-circle fa-2x"></i>
+                                    </div>
+                                    <div class="stat-number h3 fw-bold mb-0">{{ stats.closed }}</div>
+                                    <div class="stat-label small text-muted">Resolved</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 text-center">
+                            <a href="{{ url_for('public.public_dashboard') }}" class="btn btn-outline-primary btn-sm">
+                                View Full Dashboard <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold">How It Works</h2>
+            <p class="text-muted">Simple, secure, and transparent process</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-3">
+                <div class="process-card text-center p-4 bg-white rounded-4 shadow-sm h-100">
+                    <div class="process-icon bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-edit fa-2x"></i>
+                    </div>
+                    <h5>1. Submit</h5>
+                    <p class="text-muted small mb-0">Fill out the complaint form with details about the incident. No personal info required.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-card text-center p-4 bg-white rounded-4 shadow-sm h-100">
+                    <div class="process-icon bg-info bg-opacity-10 text-info rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-fingerprint fa-2x"></i>
+                    </div>
+                    <h5>2. Receive ID</h5>
+                    <p class="text-muted small mb-0">Get a unique tracking ID. Save it securely to track your complaint status.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-card text-center p-4 bg-white rounded-4 shadow-sm h-100">
+                    <div class="process-icon bg-warning bg-opacity-10 text-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-search fa-2x"></i>
+                    </div>
+                    <h5>3. Review</h5>
+                    <p class="text-muted small mb-0">Officers review and investigate your complaint through proper channels.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-card text-center p-4 bg-white rounded-4 shadow-sm h-100">
+                    <div class="process-icon bg-success bg-opacity-10 text-success rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                    <h5>4. Resolution</h5>
+                    <p class="text-muted small mb-0">Track progress and receive updates until your complaint is resolved.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Departments Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold">Covered Departments</h2>
+            <p class="text-muted">Report issues across all municipal services</p>
+        </div>
+        <div class="row g-4">
+            {% for dept in departments[:6] %}
+            <div class="col-md-4 col-lg-3">
+                <div class="dept-card p-4 bg-white rounded-4 shadow-sm h-100 border-start border-4 border-primary">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="dept-icon bg-primary bg-opacity-10 text-primary rounded-3 p-2 me-3">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <h6 class="mb-0 fw-semibold">{{ dept.name }}</h6>
+                    </div>
+                    <p class="text-muted small mb-0">{{ dept.description or 'Municipal services and grievance redressal' }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if departments|length > 6 %}
+        <div class="text-center mt-4">
+            <a href="{{ url_for('public.submit_complaint') }}" class="btn btn-outline-primary">
+                View All Departments <i class="fas fa-arrow-right ms-1"></i>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h2 class="fw-bold mb-4">Why Use MIBSP?</h2>
+                <div class="feature-list">
+                    <div class="d-flex mb-4">
+                        <div class="feature-icon bg-success bg-opacity-10 text-success rounded-3 p-3 me-3">
+                            <i class="fas fa-user-secret fa-lg"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-2">Complete Anonymity</h5>
+                            <p class="text-muted mb-0">No registration, no login, no personal data collection. Your identity is never stored.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex mb-4">
+                        <div class="feature-icon bg-primary bg-opacity-10 text-primary rounded-3 p-3 me-3">
+                            <i class="fas fa-link fa-lg"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-2">Tamper-Proof Records</h5>
+                            <p class="text-muted mb-0">Hash-chained audit logs ensure no one can alter complaint history.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex mb-4">
+                        <div class="feature-icon bg-info bg-opacity-10 text-info rounded-3 p-3 me-3">
+                            <i class="fas fa-chart-bar fa-lg"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-2">Public Transparency</h5>
+                            <p class="text-muted mb-0">Real-time statistics and dashboards available to all citizens.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex">
+                        <div class="feature-icon bg-warning bg-opacity-10 text-warning rounded-3 p-3 me-3">
+                            <i class="fas fa-mobile-alt fa-lg"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-2">Mobile Friendly</h5>
+                            <p class="text-muted mb-0">Submit and track complaints from any device, anywhere.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="cta-card bg-primary text-white rounded-4 p-5 text-center">
+                    <i class="fas fa-shield-alt fa-4x mb-4 opacity-75"></i>
+                    <h3 class="fw-bold mb-3">Ready to Report?</h3>
+                    <p class="mb-4 opacity-75">Join thousands of citizens promoting transparency and accountability in governance.</p>
+                    <a href="{{ url_for('public.submit_complaint') }}" class="btn btn-light btn-lg px-5">
+                        <i class="fas fa-edit me-2"></i>Submit Now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

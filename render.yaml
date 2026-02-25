@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: mibsp
+    env: python
+    region: singapore
+    plan: starter
+    buildCommand: |
+      pip install -r requirements.txt
+      pip install psycopg2-binary gunicorn
+      flask db upgrade
+      python seed.py
+    startCommand: gunicorn wsgi:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mibsp-db
+          property: connectionString
+      - key: UPLOAD_FOLDER
+        value: /tmp/mibsp_uploads
+      - key: PYTHON_VERSION
+        value: 3.11.6
+    disk:
+      name: uploads
+      mountPath: /tmp/mibsp_uploads
+      sizeGB: 1
+
+databases:
+  - name: mibsp-db
+    databaseName: mibsp
+    user: mibsp_user
+    region: singapore
+    plan: starter

@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Logs{% endblock %}
+
+{% block content %}
+<div class="py-4 bg-light">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Audit Logs</li>
+            </ol>
+        </nav>
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="fw-bold mb-1"><i class="fas fa-history me-2 text-primary"></i>Audit Logs</h4>
+                <p class="text-muted mb-0">Immutable record of all system actions</p>
+            </div>
+            <span class="badge bg-info">
+                <i class="fas fa-lock me-1"></i>Hash-Chained
+            </span>
+        </div>
+        
+        <!-- Filters -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Action Type</label>
+                        <select class="form-select" name="action">
+                            <option value="">All Actions</option>
+                            {% for action_type in actions %}
+                            <option value="{{ action_type }}" {% if filters.action == action_type %}selected{% endif %}>
+                                {{ action_type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" name="username" 
+                               placeholder="Search username..."
+                               value="{{ filters.username or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-control" name="date_from" 
+                               value="{{ filters.date_from or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-control" name="date_to" 
+                               value="{{ filters.date_to or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter me-2"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Logs Table -->
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                                <th>IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>{{ log.timestamp|format_datetime('%d %b %Y, %H:%M:%S') }}</td>
+                                <td><strong>{{ log.username }}</strong></td>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if log.role == 'admin' else 'info' }}">
+                                        {{ log.role }}
+                                    </span>
+                                </td>
+                                <td><code>{{ log.action }}</code></td>
+                                <td>
+                                    {% if log.details %}
+                                        <small class="text-muted">{{ log.details[:100] }}{% if log.details|length > 100 %}...{% endif %}</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td><small class="text-muted">{{ log.ip_address or '-' }}</small></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted mb-0">No audit logs found.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Pagination -->
+            {% if pagination.pages > 1 %}
+            <div class="card-footer bg-white">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.audit_logs', page=pagination.prev_num, **filters) }}">Previous</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in pagination.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.audit_logs', page=page_num, **filters) }}">{{ page_num }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.audit_logs', page=pagination.next_num, **filters) }}">Next</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Integrity Notice -->
+        <div class="alert alert-info d-flex mt-4">
+            <i class="fas fa-shield-alt fa-lg me-3 mt-1"></i>
+            <div>
+                <strong>Audit Log Integrity</strong>
+                <p class="mb-0 small">
+                    Each log entry contains a SHA-256 hash chained to the previous entry. 
+                    This creates a tamper-evident record. Any modification would break the chain 
+                    and be immediately detectable.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

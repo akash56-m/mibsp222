@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}Track Complaint{% endblock %}
+
+{% block content %}
+<div class="py-5 bg-light">
+    <div class="container">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('public.index') }}">Home</a></li>
+                <li class="breadcrumb-item active">Track Complaint</li>
+            </ol>
+        </nav>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-primary text-white py-4">
+                        <h4 class="mb-0"><i class="fas fa-search me-2"></i>Track Your Complaint</h4>
+                        <p class="mb-0 mt-2 opacity-75">Enter your tracking ID to check the status of your complaint.</p>
+                    </div>
+                    <div class="card-body p-4 p-md-5">
+                        <form method="POST" action="{{ url_for('public.track_complaint') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <div class="mb-4">
+                                <label for="tracking_id" class="form-label fw-semibold">Tracking ID</label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-primary text-white">
+                                        <i class="fas fa-fingerprint"></i>
+                                    </span>
+                                    <input 
+                                        type="text" 
+                                        class="form-control" 
+                                        id="tracking_id" 
+                                        name="tracking_id"
+                                        placeholder="e.g., MIB3A9F2K1"
+                                        value="{{ tracking_id or '' }}"
+                                        required
+                                        maxlength="11"
+                                        style="text-transform: uppercase;"
+                                    >
+                                </div>
+                                <div class="form-text">Enter the 11-character tracking ID provided when you submitted your complaint.</div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-search me-2"></i>Track Complaint
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Lost Tracking ID Help -->
+                <div class="card mt-4 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-question-circle text-info fa-lg me-3 mt-1"></i>
+                            <div>
+                                <h6 class="mb-2">Lost your tracking ID?</h6>
+                                <p class="text-muted small mb-0">
+                                    Unfortunately, tracking IDs cannot be recovered as we do not collect any personal information. 
+                                    If you've lost your tracking ID, you may need to submit a new complaint.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Complaint Details (if found) -->
+        {% if complaint %}
+        <div class="row justify-content-center mt-5">
+            <div class="col-lg-8">
+                <div class="card shadow-lg border-0">
+                    <div class="card-header bg-white py-4 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">Complaint Details</h5>
+                                <p class="text-muted mb-0">Tracking ID: <strong class="text-primary">{{ complaint.tracking_id }}</strong></p>
+                            </div>
+                            <span class="badge bg-{{ complaint.status|status_badge }} fs-6 px-3 py-2">
+                                <i class="fas fa-{{ complaint.status|status_icon }} me-1"></i>{{ complaint.status }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Progress Bar -->
+                        <div class="mb-4">
+                            <h6 class="fw-semibold mb-3">Progress</h6>
+                            <div class="progress" style="height: 8px;">
+                                {% set progress = {'Pending': 25, 'Under Review': 50, 'Action Taken': 75, 'Closed': 100}[complaint.status] or 0 %}
+                                <div class="progress-bar bg-{{ complaint.status|status_badge }}" 
+                                     role="progressbar" 
+                                     style="width: {{ progress }}%">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2 text-muted small">
+                                <span>Submitted</span>
+                                <span>Under Review</span>
+                                <span>Action Taken</span>
+                                <span>Closed</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Details Grid -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Department</small>
+                                    <strong>{{ complaint.department.name }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Service</small>
+                                    <strong>{{ complaint.service.name }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Submitted On</small>
+                                    <strong>{{ complaint.submitted_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Last Updated</small>
+                                    <strong>{{ complaint.updated_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                            {% if complaint.resolved_at %}
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Resolved On</small>
+                                    <strong>{{ complaint.resolved_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Resolution Time</small>
+                                    <strong>{{ complaint.get_resolution_time() }} hours</strong>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Resolution Notes -->
+                        {% if complaint.resolution_notes %}
+                        <div class="mt-4">
+                            <h6 class="fw-semibold mb-2">Updates & Notes</h6>
+                            <div class="p-3 bg-light rounded-3">
+                                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ complaint.resolution_notes }}</pre>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Evidence -->
+                        {% if complaint.evidence_path %}
+                        <div class="mt-4">
+                            <h6 class="fw-semibold mb-2">Evidence Submitted</h6>
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-paperclip me-1"></i>File attached
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-white py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Status updates may take 24-48 hours
+                            </small>
+                            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trackingInput = document.getElementById('tracking_id');
+    
+    // Auto-uppercase input
+    trackingInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+});
+</script>
+{% endblock %}
