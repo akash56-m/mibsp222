@@ -135,6 +135,8 @@ def seed_services(departments):
                 db.session.add(service)
                 print(f"  Created service: {service_name} ({dept.name})")
                 services.append(service)
+            else:
+                services.append(existing)
     
     db.session.commit()
     return services
