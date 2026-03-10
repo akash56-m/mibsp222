@@ -1,54 +1,60 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+<nav class="navbar navbar-expand-lg site-nav sticky-top">
     <div class="container">
         <!-- Brand -->
-        <a class="navbar-brand d-flex align-items-center" href="{{ url_for('public.index') }}">
-            <i class="fas fa-shield-alt me-2"></i>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.index') }}" aria-label="MIBSP home">
+            <span class="brand-mark">
+                <i class="fas fa-shield-alt"></i>
+            </span>
             <div>
-                <span class="fw-bold">MIBSP</span>
-                <small class="d-block text-light opacity-75" style="font-size: 0.65rem; line-height: 1;">Municipal Integrity Portal</small>
+                <span class="fw-bold d-block lh-1">MIBSP</span>
+                <small class="brand-subtitle">Municipal Integrity Portal</small>
             </div>
         </a>
-        
+
         <!-- Mobile Toggle -->
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        
+
         <!-- Navigation Links -->
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto">
+            <ul class="navbar-nav me-auto py-2 py-lg-0">
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('public.index') }}">
+                    <a class="nav-link {% if request.endpoint == 'public.index' %}active{% endif %}" href="{{ url_for('public.index') }}">
                         <i class="fas fa-home me-1"></i>Home
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('public.submit_complaint') }}">
+                    <a class="nav-link {% if request.endpoint == 'public.submit_complaint' %}active{% endif %}" href="{{ url_for('public.submit_complaint') }}">
                         <i class="fas fa-edit me-1"></i>Submit Complaint
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('public.track_complaint') }}">
+                    <a class="nav-link {% if request.endpoint == 'public.track_complaint' %}active{% endif %}" href="{{ url_for('public.track_complaint') }}">
                         <i class="fas fa-search me-1"></i>Track
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('public.public_dashboard') }}">
+                    <a class="nav-link {% if request.endpoint == 'public.public_dashboard' %}active{% endif %}" href="{{ url_for('public.public_dashboard') }}">
                         <i class="fas fa-chart-bar me-1"></i>Dashboard
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'public.geo_heatmap' %}active{% endif %}" href="{{ url_for('public.geo_heatmap') }}">
+                        <i class="fas fa-map-location-dot me-1"></i>Geo Heatmap
+                    </a>
+                </li>
             </ul>
-            
+
             <!-- Right Side -->
-            <ul class="navbar-nav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
                 {% if session.user_id %}
-                    <!-- Logged In -->
                     {% if session.role == 'admin' %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-cog me-1"></i>Admin
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
+                            <ul class="dropdown-menu dropdown-menu-end nav-dropdown">
                                 <li><a class="dropdown-item" href="{{ url_for('admin.dashboard') }}">
                                     <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                                 </a></li>
@@ -69,31 +75,43 @@
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('officer.dashboard') }}">
-                                <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                            <a class="nav-link {% if request.endpoint and request.endpoint.startswith('officer.') %}active{% endif %}" href="{{ url_for('officer.dashboard') }}">
+                                <i class="fas fa-tachometer-alt me-1"></i>Staff Dashboard
                             </a>
                         </li>
                     {% endif %}
-                    
+
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user-circle me-1"></i>{{ session.username }}
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
+                        <ul class="dropdown-menu dropdown-menu-end nav-dropdown">
                             <li><span class="dropdown-item-text text-muted">
                                 <small>Role: {{ session.role|title }}</small>
                             </span></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
-                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                                <i class="fas fa-id-card me-2"></i>Profile
                             </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('auth.logout') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                    </button>
+                                </form>
+                            </li>
                         </ul>
                     </li>
                 {% else %}
-                    <!-- Not Logged In -->
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}">
+                        <a class="btn btn-sm btn-outline-light nav-ghost-btn" href="{{ url_for('auth.login') }}">
                             <i class="fas fa-sign-in-alt me-1"></i>Staff Login
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-sm btn-warning text-dark nav-cta-btn" href="{{ url_for('public.submit_complaint') }}">
+                            <i class="fas fa-paper-plane me-1"></i>Submit Now
                         </a>
                     </li>
                 {% endif %}

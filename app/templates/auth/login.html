@@ -3,90 +3,135 @@
 {% block title %}Staff Login{% endblock %}
 
 {% block content %}
-<div class="py-5 bg-light">
+<section class="py-5 login-shell">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-5 col-lg-4">
-                <div class="card shadow-lg border-0">
-                    <div class="card-header bg-primary text-white text-center py-4">
-                        <div class="mb-3">
-                            <i class="fas fa-shield-alt fa-3x opacity-75"></i>
-                        </div>
-                        <h4 class="mb-0">Staff Login</h4>
-                        <p class="mb-0 mt-2 opacity-75">Officers & Administrators</p>
+        <div class="row justify-content-center align-items-stretch g-0 login-wrap">
+            <div class="col-lg-5 d-none d-lg-block">
+                <div class="login-info-panel h-100 p-5">
+                    <div class="login-info-top">
+                        <span class="login-chip"><i class="fas fa-user-shield me-2"></i>Authorized Access</span>
+                        <h2 class="mt-4 mb-3">Municipal Staff Portal</h2>
+                        <p class="mb-4 text-light-emphasis">
+                            Officers and administrators can securely manage complaints, update progress,
+                            and maintain transparent records.
+                        </p>
                     </div>
-                    <div class="card-body p-4">
-                        <form method="POST" action="{{ url_for('auth.login') }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            
-                            <div class="mb-3">
-                                <label for="username" class="form-label">Username</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light">
-                                        <i class="fas fa-user text-muted"></i>
-                                    </span>
-                                    <input 
-                                        type="text" 
-                                        class="form-control" 
-                                        id="username" 
-                                        name="username"
-                                        placeholder="Enter username"
-                                        required
-                                        autofocus
-                                    >
-                                </div>
+                    <div class="login-info-grid">
+                        <div class="login-info-item">
+                            <i class="fas fa-lock"></i>
+                            <div>
+                                <h6 class="mb-1">Secure Sessions</h6>
+                                <p class="mb-0">Protected staff access with managed sessions.</p>
                             </div>
-                            
-                            <div class="mb-4">
-                                <label for="password" class="form-label">Password</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light">
-                                        <i class="fas fa-lock text-muted"></i>
-                                    </span>
-                                    <input 
-                                        type="password" 
-                                        class="form-control" 
-                                        id="password" 
-                                        name="password"
-                                        placeholder="Enter password"
-                                        required
-                                    >
-                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-sign-in-alt me-2"></i>Login
-                                </button>
-                            </div>
-                        </form>
-                        
-                        <hr class="my-4">
-                        
-                        <div class="text-center">
-                            <p class="text-muted small mb-0">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Citizen? <a href="{{ url_for('public.submit_complaint') }}">Submit complaint anonymously</a>
-                            </p>
                         </div>
+                        <div class="login-info-item">
+                            <i class="fas fa-history"></i>
+                            <div>
+                                <h6 class="mb-1">Audit Logging</h6>
+                                <p class="mb-0">Every critical action is recorded for accountability.</p>
+                            </div>
+                        </div>
+                        <div class="login-info-item">
+                            <i class="fas fa-building"></i>
+                            <div>
+                                <h6 class="mb-1">Department Workflows</h6>
+                                <p class="mb-0">Route complaints to the right teams quickly.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-auto pt-4">
+                        <a href="{{ url_for('public.submit_complaint') }}" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i>Citizen Complaint Submission
+                        </a>
                     </div>
                 </div>
-                
-                <!-- Security Notice -->
-                <div class="alert alert-info d-flex mt-4">
-                    <i class="fas fa-lock fa-lg me-3 mt-1"></i>
-                    <div>
-                        <strong>Secure Access Only</strong>
-                        <p class="mb-0 small">This login is for authorized municipal staff only. All login attempts are logged and monitored.</p>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="login-form-panel h-100 p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <div class="login-logo mb-3">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3 class="mb-1">Staff Login</h3>
+                        <p class="text-muted mb-0">Officers and Administrators</p>
                     </div>
+
+                    <form method="POST" action="{{ url_for('auth.login') }}" class="login-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label fw-semibold">Username</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text">
+                                    <i class="fas fa-user text-muted"></i>
+                                </span>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="username"
+                                    name="username"
+                                    placeholder="Enter your username"
+                                    autocomplete="username"
+                                    required
+                                    autofocus
+                                >
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="password" class="form-label fw-semibold">Password</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text">
+                                    <i class="fas fa-lock text-muted"></i>
+                                </span>
+                                <input
+                                    type="password"
+                                    class="form-control"
+                                    id="password"
+                                    name="password"
+                                    placeholder="Enter your password"
+                                    autocomplete="current-password"
+                                    required
+                                >
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Show password">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="mini-tip">
+                                <i class="fas fa-circle-info me-2 text-primary"></i>
+                                Keep credentials confidential.
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="mini-tip">
+                                <i class="fas fa-user-secret me-2 text-success"></i>
+                                Citizens can report anonymously.
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-center text-muted small mt-4 mb-0">
+                        Citizen? <a href="{{ url_for('public.submit_complaint') }}">Submit complaint anonymously</a>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
@@ -94,14 +139,19 @@
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
-    
+
+    if (!toggleBtn || !passwordInput) {
+        return;
+    }
+
     toggleBtn.addEventListener('click', function() {
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-        
+        const isHidden = passwordInput.getAttribute('type') === 'password';
+        passwordInput.setAttribute('type', isHidden ? 'text' : 'password');
+
         const icon = this.querySelector('i');
         icon.classList.toggle('fa-eye');
         icon.classList.toggle('fa-eye-slash');
+        this.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
     });
 });
 </script>

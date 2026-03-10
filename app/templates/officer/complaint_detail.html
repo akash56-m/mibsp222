@@ -63,6 +63,18 @@
                                     <strong>{{ complaint.updated_at|format_datetime }}</strong>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Priority</small>
+                                    <strong class="{{ 'text-danger' if complaint.priority == 'High' else '' }}">{{ complaint.priority }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Escalation Level</small>
+                                    <strong>{{ complaint.escalation_level }}</strong>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Evidence -->

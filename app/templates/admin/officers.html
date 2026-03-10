@@ -3,7 +3,7 @@
 {% block title %}Manage Officers{% endblock %}
 
 {% block content %}
-<div class="py-4 bg-light">
+<div class="py-4 bg-light mobile-data-page">
     <div class="container">
         <!-- Breadcrumb -->
         <nav aria-label="breadcrumb" class="mb-4">
@@ -14,9 +14,9 @@
         </nav>
         
         <!-- Header -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <h4 class="fw-bold mb-0"><i class="fas fa-users me-2 text-primary"></i>Manage Officers</h4>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createOfficerModal">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createOfficerModal">
                 <i class="fas fa-plus me-2"></i>Add Officer
             </button>
         </div>
@@ -25,33 +25,35 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 table-sm mobile-data-table">
                         <thead class="table-light">
                             <tr>
                                 <th>Username</th>
-                                <th>Email</th>
-                                <th>Department</th>
+                                <th>Role</th>
+                                <th class="d-none d-lg-table-cell">Email</th>
+                                <th class="d-none d-md-table-cell">Department</th>
                                 <th>Status</th>
-                                <th>Last Login</th>
+                                <th class="d-none d-lg-table-cell">Last Login</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for officer in officers %}
                             <tr>
-                                <td><strong>{{ officer.username }}</strong></td>
-                                <td>{{ officer.email or '-' }}</td>
-                                <td>{{ officer.department.name if officer.department else '-' }}</td>
-                                <td>
+                                <td data-label="Username"><strong>{{ officer.username }}</strong></td>
+                                <td data-label="Role"><span class="badge bg-info">{{ officer.role }}</span></td>
+                                <td data-label="Email" class="d-none d-lg-table-cell">{{ officer.email or '-' }}</td>
+                                <td data-label="Department" class="d-none d-md-table-cell">{{ officer.department.name if officer.department else '-' }}</td>
+                                <td data-label="Status">
                                     {% if officer.is_active %}
                                         <span class="badge bg-success">Active</span>
                                     {% else %}
                                         <span class="badge bg-secondary">Inactive</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ officer.last_login|format_datetime if officer.last_login else 'Never' }}</td>
-                                <td>
-                                    <div class="btn-group">
+                                <td data-label="Last Login" class="d-none d-lg-table-cell">{{ officer.last_login|format_datetime if officer.last_login else 'Never' }}</td>
+                                <td data-label="Actions">
+                                    <div class="btn-group btn-group-sm">
                                         <form method="POST" action="{{ url_for('admin.toggle_officer', officer_id=officer.id) }}" class="d-inline">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <button type="submit" class="btn btn-sm btn-{{ 'warning' if officer.is_active else 'success' }}">
@@ -66,8 +68,8 @@
                                 </td>
                             </tr>
                             {% else %}
-                            <tr>
-                                <td colspan="6" class="text-center py-5">
+                            <tr class="table-empty-state">
+                                <td colspan="7" class="text-center py-5">
                                     <i class="fas fa-users fa-3x text-muted mb-3"></i>
                                     <p class="text-muted mb-0">No officers found.</p>
                                 </td>
@@ -99,6 +101,14 @@
                     <div class="mb-3">
                         <label class="form-label">Email (Optional)</label>
                         <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" name="role" required>
+                            <option value="officer">Ward Officer</option>
+                            <option value="zonal_officer">Zonal Officer</option>
+                            <option value="commissioner">Municipal Commissioner</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Password</label>

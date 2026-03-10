@@ -6,13 +6,17 @@ import os
 import uuid
 import secrets
 import string
+import time
+import threading
 from datetime import datetime
 from functools import wraps
-from flask import session, redirect, url_for, flash, request, current_app
+from flask import session, redirect, url_for, flash, request, current_app, abort
 from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import AuditLog
+
+_sla_guard_lock = threading.Lock()
 
 
 # =============================================================================
@@ -38,8 +42,7 @@ def admin_required(f):
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('auth.login', next=request.url))
         if session.get('role') != 'admin':
-            flash('Admin access required.', 'danger')
-            return redirect(url_for('public.index'))
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -51,11 +54,36 @@ def officer_required(f):
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('auth.login', next=request.url))
-        if session.get('role') not in ['officer', 'admin']:
-            flash('Officer access required.', 'danger')
-            return redirect(url_for('public.index'))
+        if session.get('role') not in ['officer', 'zonal_officer', 'commissioner', 'admin']:
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
+
+
+def maybe_run_sla_escalations(force=False):
+    """
+    Run SLA escalation checks with a per-process interval guard.
+    Prevents full-table scans from running on every request.
+    """
+    from app.models import Complaint
+
+    if force:
+        return Complaint.apply_sla_escalations()
+
+    interval = int(current_app.config.get('SLA_CHECK_INTERVAL_SECONDS', 20))
+    if interval <= 0:
+        return Complaint.apply_sla_escalations()
+
+    now_ts = time.time()
+    bucket = current_app.extensions.setdefault('mibsp_runtime', {})
+
+    with _sla_guard_lock:
+        last_run_ts = bucket.get('sla_last_run_ts', 0)
+        if now_ts - last_run_ts < interval:
+            return 0
+        bucket['sla_last_run_ts'] = now_ts
+
+    return Complaint.apply_sla_escalations()
 
 
 # =============================================================================
@@ -202,10 +230,12 @@ def log_action(action, details=None, user=None):
         username = user.username
         role = user.role
     
-    # Get IP address
-    ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ip_address and ',' in ip_address:
-        ip_address = ip_address.split(',')[0].strip()
+    # Store IP address only for authenticated staff actions.
+    ip_address = None
+    if role in {'admin', 'officer', 'zonal_officer', 'commissioner'}:
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ip_address and ',' in ip_address:
+            ip_address = ip_address.split(',')[0].strip()
     
     # Convert details to string if needed
     if details and not isinstance(details, str):
@@ -236,6 +266,8 @@ def format_status_badge(status):
         'Pending': 'bg-warning text-dark',
         'Under Review': 'bg-info text-dark',
         'Action Taken': 'bg-primary',
+        'Delayed': 'bg-danger',
+        'Reopened': 'bg-secondary',
         'Closed': 'bg-success'
     }
     return badges.get(status, 'bg-secondary')
@@ -247,6 +279,8 @@ def format_status_icon(status):
         'Pending': 'fa-clock',
         'Under Review': 'fa-search',
         'Action Taken': 'fa-tasks',
+        'Delayed': 'fa-triangle-exclamation',
+        'Reopened': 'fa-rotate-left',
         'Closed': 'fa-check-circle'
     }
     return icons.get(status, 'fa-question-circle')
@@ -259,6 +293,58 @@ def truncate_text(text, length=100):
     if len(text) <= length:
         return text
     return text[:length].rsplit(' ', 1)[0] + '...'
+
+
+def analyze_complaint_text(description):
+    """
+    Lightweight AI-like text analysis for urgency, category, and sentiment.
+    Used as fallback even when external AI APIs are unavailable.
+    """
+    text = (description or '').lower()
+
+    urgent_keywords = [
+        'corruption', 'bribe', 'threat', 'danger', 'health hazard',
+        'sewage', 'outbreak', 'collapse', 'emergency', 'unsafe'
+    ]
+    negative_keywords = [
+        'bad', 'worst', 'delay', 'ignored', 'no action', 'problem',
+        'complaint', 'issue', 'hazard', 'unsafe'
+    ]
+    positive_keywords = ['resolved', 'improved', 'good', 'satisfied']
+
+    category_rules = {
+        'Water Supply': ['water', 'pipeline', 'tap', 'leakage'],
+        'Roads & Infrastructure': ['road', 'pothole', 'street light', 'drainage'],
+        'Public Health': ['mosquito', 'health', 'hygiene', 'toilet'],
+        'Electricity': ['power', 'electricity', 'voltage', 'meter'],
+        'Sanitation': ['garbage', 'waste', 'sewage', 'cleaning']
+    }
+
+    is_urgent = any(keyword in text for keyword in urgent_keywords)
+    priority = 'High' if is_urgent else 'Normal'
+
+    negative_score = sum(1 for keyword in negative_keywords if keyword in text)
+    positive_score = sum(1 for keyword in positive_keywords if keyword in text)
+    sentiment = 'negative'
+    if positive_score > negative_score:
+        sentiment = 'positive'
+    elif negative_score == positive_score:
+        sentiment = 'neutral'
+
+    detected_category = None
+    best_score = 0
+    for category, keywords in category_rules.items():
+        score = sum(1 for keyword in keywords if keyword in text)
+        if score > best_score:
+            detected_category = category
+            best_score = score
+
+    return {
+        'priority': priority,
+        'urgent': is_urgent,
+        'sentiment': sentiment,
+        'category': detected_category
+    }
 
 
 # =============================================================================

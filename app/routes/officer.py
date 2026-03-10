@@ -3,12 +3,13 @@ MIBSP Officer Routes
 Officer dashboard and complaint management.
 Officers can only access complaints in their department.
 """
+from datetime import datetime
 from flask import Blueprint, render_template, request, flash, redirect, url_for, session, jsonify, current_app
 from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models import User, Complaint, Department, AuditLog
-from app.utils import officer_required, log_action
+from app.utils import officer_required, log_action, maybe_run_sla_escalations
 from app.tasks import send_status_update_notification
 
 officer_bp = Blueprint('officer', __name__)
@@ -18,6 +19,7 @@ officer_bp = Blueprint('officer', __name__)
 @officer_required
 def dashboard():
     """Officer dashboard with assigned complaints."""
+    maybe_run_sla_escalations()
     user_id = session['user_id']
     department_id = session.get('department_id')
     
@@ -36,6 +38,9 @@ def dashboard():
         'assigned': len(assigned_complaints),
         'pending': sum(1 for c in assigned_complaints if c.status == 'Pending'),
         'under_review': sum(1 for c in assigned_complaints if c.status == 'Under Review'),
+        'delayed': sum(1 for c in assigned_complaints if c.status == 'Delayed'),
+        'reopened': sum(1 for c in assigned_complaints if c.status == 'Reopened'),
+        'high_priority': sum(1 for c in assigned_complaints if c.priority == 'High'),
         'closed': sum(1 for c in assigned_complaints if c.status == 'Closed')
     }
     
@@ -52,7 +57,7 @@ def complaint_detail(tracking_id):
     complaint = Complaint.query.filter_by(tracking_id=tracking_id).first_or_404()
     
     # Check access permission
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     if not user.can_access_complaint(complaint):
         flash('You do not have permission to view this complaint.', 'danger')
         return redirect(url_for('officer.dashboard'))
@@ -74,7 +79,7 @@ def update_status(tracking_id):
     complaint = Complaint.query.filter_by(tracking_id=tracking_id).first_or_404()
     
     # Check permission
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     if not user.can_access_complaint(complaint):
         flash('You do not have permission to update this complaint.', 'danger')
         return redirect(url_for('officer.dashboard'))
@@ -125,7 +130,7 @@ def update_status(tracking_id):
 def assign_to_me(tracking_id):
     """Self-assign an unassigned complaint."""
     complaint = Complaint.query.filter_by(tracking_id=tracking_id).first_or_404()
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     
     # Check if in same department and unassigned
     if complaint.department_id != user.department_id:
@@ -163,7 +168,7 @@ def assign_to_me(tracking_id):
 def add_notes(tracking_id):
     """Add investigation notes to a complaint."""
     complaint = Complaint.query.filter_by(tracking_id=tracking_id).first_or_404()
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     
     if not user.can_access_complaint(complaint):
         flash('You do not have permission to modify this complaint.', 'danger')
@@ -207,6 +212,7 @@ def add_notes(tracking_id):
 @officer_required
 def get_my_stats():
     """API endpoint for officer's personal stats."""
+    maybe_run_sla_escalations()
     user_id = session['user_id']
     
     assigned = Complaint.query.filter_by(assigned_to=user_id)
@@ -216,6 +222,9 @@ def get_my_stats():
         'pending': assigned.filter_by(status='Pending').count(),
         'under_review': assigned.filter_by(status='Under Review').count(),
         'action_taken': assigned.filter_by(status='Action Taken').count(),
+        'delayed': assigned.filter_by(status='Delayed').count(),
+        'reopened': assigned.filter_by(status='Reopened').count(),
+        'high_priority': assigned.filter_by(priority='High').count(),
         'closed': assigned.filter_by(status='Closed').count()
     }
     

@@ -5,6 +5,7 @@ Creates demo data for development and testing.
 """
 import os
 import sys
+import argparse
 from datetime import datetime, timedelta
 import random
 
@@ -13,6 +14,38 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app, db
 from app.models import Department, Service, User, Complaint, AuditLog
+from app.utils import generate_tracking_id
+
+
+LOCATION_CATALOG = [
+    {'state': 'Maharashtra', 'district': 'Mumbai Suburban', 'city': 'Mumbai', 'lat': 19.0760, 'lng': 72.8777},
+    {'state': 'Maharashtra', 'district': 'Pune', 'city': 'Pune', 'lat': 18.5204, 'lng': 73.8567},
+    {'state': 'Maharashtra', 'district': 'Nagpur', 'city': 'Nagpur', 'lat': 21.1458, 'lng': 79.0882},
+    {'state': 'Maharashtra', 'district': 'Nashik', 'city': 'Nashik', 'lat': 19.9975, 'lng': 73.7898},
+    {'state': 'Karnataka', 'district': 'Bengaluru Urban', 'city': 'Bengaluru', 'lat': 12.9716, 'lng': 77.5946},
+    {'state': 'Karnataka', 'district': 'Mysuru', 'city': 'Mysuru', 'lat': 12.2958, 'lng': 76.6394},
+    {'state': 'Karnataka', 'district': 'Dakshina Kannada', 'city': 'Mangaluru', 'lat': 12.9141, 'lng': 74.8560},
+    {'state': 'Karnataka', 'district': 'Dharwad', 'city': 'Hubballi', 'lat': 15.3647, 'lng': 75.1240},
+    {'state': 'Tamil Nadu', 'district': 'Chennai', 'city': 'Chennai', 'lat': 13.0827, 'lng': 80.2707},
+    {'state': 'Telangana', 'district': 'Hyderabad', 'city': 'Hyderabad', 'lat': 17.3850, 'lng': 78.4867},
+    {'state': 'Delhi', 'district': 'New Delhi', 'city': 'New Delhi', 'lat': 28.6139, 'lng': 77.2090},
+    {'state': 'Gujarat', 'district': 'Ahmedabad', 'city': 'Ahmedabad', 'lat': 23.0225, 'lng': 72.5714},
+    {'state': 'West Bengal', 'district': 'Kolkata', 'city': 'Kolkata', 'lat': 22.5726, 'lng': 88.3639},
+    {'state': 'Uttar Pradesh', 'district': 'Lucknow', 'city': 'Lucknow', 'lat': 26.8467, 'lng': 80.9462},
+    {'state': 'Rajasthan', 'district': 'Jaipur', 'city': 'Jaipur', 'lat': 26.9124, 'lng': 75.7873},
+    {'state': 'Madhya Pradesh', 'district': 'Indore', 'city': 'Indore', 'lat': 22.7196, 'lng': 75.8577},
+    {'state': 'Kerala', 'district': 'Ernakulam', 'city': 'Kochi', 'lat': 9.9312, 'lng': 76.2673},
+    {'state': 'Bihar', 'district': 'Patna', 'city': 'Patna', 'lat': 25.5941, 'lng': 85.1376},
+    {'state': 'Odisha', 'district': 'Khordha', 'city': 'Bhubaneswar', 'lat': 20.2961, 'lng': 85.8245},
+    {'state': 'Punjab', 'district': 'Ludhiana', 'city': 'Ludhiana', 'lat': 30.9010, 'lng': 75.8573}
+]
+
+
+def random_nearby_coords(base_lat, base_lng):
+    """Return slightly jittered coordinates around a city center."""
+    lat = round(base_lat + random.uniform(-0.035, 0.035), 6)
+    lng = round(base_lng + random.uniform(-0.035, 0.035), 6)
+    return lat, lng
 
 
 def seed_departments():
@@ -172,8 +205,8 @@ def seed_complaints(departments, services):
         "Waste segregation not being followed. Need awareness and enforcement."
     ]
     
-    statuses = ['Pending', 'Under Review', 'Action Taken', 'Closed']
-    status_weights = [0.3, 0.3, 0.2, 0.2]
+    statuses = ['Pending', 'Under Review', 'Action Taken', 'Delayed', 'Reopened', 'Closed']
+    status_weights = [0.24, 0.24, 0.18, 0.12, 0.08, 0.14]
     
     officers = User.query.filter_by(role='officer').all()
     complaints_created = []
@@ -191,6 +224,10 @@ def seed_complaints(departments, services):
         # Determine status
         status = random.choices(statuses, weights=status_weights)[0]
         
+        location = random.choice(LOCATION_CATALOG)
+        city_name = location['city']
+        location_lat, location_lng = random_nearby_coords(location['lat'], location['lng'])
+
         # Create complaint
         complaint = Complaint(
             tracking_id=f'MIB{random.randint(10000000, 99999999)}',
@@ -198,9 +235,25 @@ def seed_complaints(departments, services):
             department_id=dept.id,
             description=random.choice(sample_descriptions),
             status=status,
+            priority='High' if random.random() < 0.25 else 'Normal',
+            escalation_level=random.choice([0, 0, 1, 2]) if status in ['Delayed', 'Reopened'] else 0,
+            reopen_count=random.randint(1, 3) if status == 'Reopened' else 0,
+            ai_sentiment=random.choice(['negative', 'neutral', 'negative', 'negative', 'positive']),
+            ai_urgent=random.random() < 0.2,
+            state=location['state'],
+            district=location['district'],
+            city=location['city'],
+            location_lat=location_lat,
+            location_lng=location_lng,
             submitted_at=submitted_at,
             updated_at=submitted_at
         )
+
+        if complaint.ai_urgent:
+            complaint.priority = 'High'
+
+        if service:
+            complaint.sla_due_at = submitted_at + timedelta(days=service.sla_days or 7)
         
         # Assign to officer if not pending
         if status != 'Pending' and officers:
@@ -213,6 +266,24 @@ def seed_complaints(departments, services):
             complaint.resolved_at = submitted_at + timedelta(days=random.randint(3, 30))
             complaint.updated_at = complaint.resolved_at
             complaint.resolution_notes = "Complaint resolved. Appropriate action taken."
+            if random.random() < 0.65:
+                complaint.citizen_rating = random.randint(2, 5)
+                complaint.citizen_feedback = random.choice([
+                    'Issue resolved satisfactorily.',
+                    'Partial resolution. Further monitoring needed.',
+                    'Response was delayed but finally addressed.',
+                    'Team was responsive once escalated.'
+                ])
+                complaint.feedback_submitted_at = complaint.resolved_at + timedelta(hours=random.randint(2, 72))
+
+        if status == 'Delayed':
+            complaint.delayed_at = submitted_at + timedelta(days=random.randint(7, 16))
+            complaint.resolution_notes = f"Auto-marked delayed near {city_name} due to SLA breach."
+
+        if status == 'Reopened':
+            complaint.resolution_notes = (
+                f"Complaint reopened by citizen in {city_name} after initial closure was unsatisfactory."
+            )
         
         db.session.add(complaint)
         complaints_created.append(complaint)

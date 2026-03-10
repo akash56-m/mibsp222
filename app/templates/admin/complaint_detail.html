@@ -64,6 +64,28 @@
               <p class="fw-semibold">{{ complaint.updated_at | format_datetime }}</p>
             </div>
           </div>
+          <div class="row mb-3">
+            <div class="col-sm-6">
+              <p class="mb-1 text-muted small">Priority</p>
+              <p class="fw-semibold {{ 'text-danger' if complaint.priority == 'High' else '' }}">{{ complaint.priority }}</p>
+            </div>
+            <div class="col-sm-6">
+              <p class="mb-1 text-muted small">Escalation Level</p>
+              <p class="fw-semibold">{{ complaint.escalation_level }}</p>
+            </div>
+          </div>
+          {% if complaint.sla_due_at %}
+          <div class="row mb-3">
+            <div class="col-sm-6">
+              <p class="mb-1 text-muted small">SLA Due</p>
+              <p class="fw-semibold">{{ complaint.sla_due_at | format_datetime }}</p>
+            </div>
+            <div class="col-sm-6">
+              <p class="mb-1 text-muted small">Reopen Count</p>
+              <p class="fw-semibold">{{ complaint.reopen_count }}</p>
+            </div>
+          </div>
+          {% endif %}
           {% if complaint.resolved_at %}
           <div class="row mb-3">
             <div class="col-sm-6">
@@ -72,7 +94,10 @@
             </div>
             <div class="col-sm-6">
               <p class="mb-1 text-muted small">Resolution Time</p>
-              <p class="fw-semibold">{{ complaint.resolution_days() }} days</p>
+              <p class="fw-semibold">
+                {% set days = ((complaint.resolved_at - complaint.submitted_at).days) %}
+                {{ days }} day{{ 's' if days != 1 else '' }}
+              </p>
             </div>
           </div>
           {% endif %}
@@ -99,6 +124,18 @@
             <p class="mb-1 text-muted small">Resolution Notes</p>
             <div class="bg-light rounded p-3">
               <p class="mb-0">{{ complaint.resolution_notes }}</p>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if complaint.citizen_rating %}
+          <div class="mt-3">
+            <p class="mb-1 text-muted small">Citizen Feedback</p>
+            <div class="bg-light rounded p-3">
+              <p class="mb-1"><strong>Rating:</strong> {{ complaint.citizen_rating }}/5</p>
+              {% if complaint.citizen_feedback %}
+              <p class="mb-0">{{ complaint.citizen_feedback }}</p>
+              {% endif %}
             </div>
           </div>
           {% endif %}
@@ -193,8 +230,9 @@
             <div class="mb-3">
               <label class="form-label small text-muted">New Status</label>
               <select name="status" class="form-select" required>
-                {% for s in ['Pending', 'Under Review', 'Action Taken', 'Closed'] %}
-                <option value="{{ s }}" {% if complaint.status == s %}selected{% endif %}>{{ s }}</option>
+                <option value="" selected disabled>Current: {{ complaint.status }}</option>
+                {% for s in complaint.STATUS_FLOW.get(complaint.status, []) %}
+                <option value="{{ s }}">{{ s }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -231,13 +269,21 @@
               <span class="text-muted">Evidence</span>
               <strong>{% if complaint.evidence_path %}Yes{% else %}No{% endif %}</strong>
             </li>
+            <li class="d-flex justify-content-between py-2 border-bottom">
+              <span class="text-muted">Priority</span>
+              <strong class="{{ 'text-danger' if complaint.priority == 'High' else '' }}">{{ complaint.priority }}</strong>
+            </li>
+            <li class="d-flex justify-content-between py-2 border-bottom">
+              <span class="text-muted">Reopen Count</span>
+              <strong>{{ complaint.reopen_count }}</strong>
+            </li>
             <li class="d-flex justify-content-between py-2">
               <span class="text-muted">Days Open</span>
               <strong>
                 {% if complaint.resolved_at %}
-                  {{ complaint.resolution_days() }} days
+                  {{ (complaint.resolved_at - complaint.submitted_at).days }} days
                 {% else %}
-                  {{ ((now() - complaint.submitted_at).days if now is defined else '—') }}
+                  {{ (now() - complaint.submitted_at).days if now is defined else 'Active' }}
                 {% endif %}
               </strong>
             </li>

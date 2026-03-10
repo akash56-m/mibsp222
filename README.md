@@ -84,15 +84,28 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your settings
 
-# 5. Initialize database
-flask db upgrade
-python seed.py
+# 5. Initialize database (bootstrap schema + baseline data)
+python deploy/bootstrap.py
 
 # 6. Run the application
 flask run
 ```
 
 Visit `http://localhost:5000` in your browser.
+
+### Install on Phone (PWA)
+
+The app supports installation as a Progressive Web App (PWA).
+
+1. Run locally on your LAN:
+   - `flask run --host 0.0.0.0 --port 5000`
+2. Open `http://<your-pc-ip>:5000` on your phone browser (same Wi-Fi) for regular testing.
+3. For full PWA install, open the app on an HTTPS URL (production domain or HTTPS tunnel).
+4. Install:
+   - Android (Chrome): menu -> `Install app` or `Add to Home screen`
+   - iPhone (Safari): Share -> `Add to Home Screen`
+
+For production installs, use HTTPS and a real domain.
 
 ### Default Credentials
 
@@ -156,8 +169,7 @@ cp .env.example .env
 # Edit .env with production settings
 
 # 6. Initialize database
-flask db upgrade
-python seed.py
+python deploy/bootstrap.py
 
 # 7. Setup Gunicorn service
 sudo cp deploy/gunicorn.service /etc/systemd/system/
@@ -182,8 +194,8 @@ docker-compose up -d
 # View logs
 docker-compose logs -f web
 
-# Run migrations
-docker-compose exec web flask db upgrade
+# Bootstrap once (idempotent) if containers fail to start with schema errors
+docker-compose exec web python deploy/bootstrap.py
 ```
 
 ## ☁️ Render.com Deployment
@@ -192,6 +204,17 @@ docker-compose exec web flask db upgrade
 2. Create a new Web Service on Render
 3. Connect your GitHub repository
 4. Render will automatically detect `render.yaml` and deploy
+5. Add these optional environment variables for first login:
+   - `DEFAULT_ADMIN_USERNAME` (default: `admin`)
+   - `DEFAULT_ADMIN_PASSWORD` (default: `Admin@1234`)
+   - `DEFAULT_ADMIN_EMAIL` (default: `admin@mibsp.gov.in`)
+6. Recommended required environment variables:
+   - `SECRET_KEY` (auto-generated if you use `generateValue`)
+   - `FLASK_ENV=production`
+   - `DATABASE_URL` is auto-populated from `mibsp-db` (linked database)
+7. After deploy, verify:
+   - `https://<your-render-app>.onrender.com/health` should return `healthy`
+   - `https://<your-render-app>.onrender.com/` should open the portal
 
 Or use the Deploy button:
 

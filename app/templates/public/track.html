@@ -38,7 +38,7 @@
                                         placeholder="e.g., MIB3A9F2K1"
                                         value="{{ tracking_id or '' }}"
                                         required
-                                        maxlength="11"
+                                        maxlength="20"
                                         style="text-transform: uppercase;"
                                     >
                                 </div>
@@ -93,7 +93,8 @@
                         <div class="mb-4">
                             <h6 class="fw-semibold mb-3">Progress</h6>
                             <div class="progress" style="height: 8px;">
-                                {% set progress = {'Pending': 25, 'Under Review': 50, 'Action Taken': 75, 'Closed': 100}[complaint.status] or 0 %}
+                                {% set progress_map = {'Pending': 20, 'Under Review': 45, 'Action Taken': 70, 'Delayed': 60, 'Reopened': 50, 'Closed': 100} %}
+                                {% set progress = progress_map.get(complaint.status, 0) %}
                                 <div class="progress-bar bg-{{ complaint.status|status_badge }}" 
                                      role="progressbar" 
                                      style="width: {{ progress }}%">
@@ -133,6 +134,34 @@
                                     <strong>{{ complaint.updated_at|format_datetime }}</strong>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Priority</small>
+                                    <strong class="{{ 'text-danger' if complaint.priority == 'High' else '' }}">{{ complaint.priority }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Escalation Level</small>
+                                    <strong>{{ complaint.escalation_level }}</strong>
+                                </div>
+                            </div>
+                            {% if complaint.sla_due_at %}
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">SLA Due Date</small>
+                                    <strong>{{ complaint.sla_due_at|format_datetime }}</strong>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if complaint.reopen_count %}
+                            <div class="col-md-6">
+                                <div class="detail-item p-3 bg-light rounded-3">
+                                    <small class="text-muted d-block mb-1">Reopen Count</small>
+                                    <strong>{{ complaint.reopen_count }}</strong>
+                                </div>
+                            </div>
+                            {% endif %}
                             {% if complaint.resolved_at %}
                             <div class="col-md-6">
                                 <div class="detail-item p-3 bg-light rounded-3">
@@ -156,6 +185,60 @@
                             <div class="p-3 bg-light rounded-3">
                                 <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ complaint.resolution_notes }}</pre>
                             </div>
+                        </div>
+                        {% endif %}
+
+                        {% if complaint.status == 'Closed' and not complaint.citizen_rating %}
+                        <div class="mt-4">
+                            <h6 class="fw-semibold mb-2">Rate Resolution (Anonymous)</h6>
+                            <form method="POST" action="{{ url_for('public.submit_feedback', tracking_id=complaint.tracking_id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div class="mb-2">
+                                    <label class="form-label small">Rating</label>
+                                    <select class="form-select" name="rating" required>
+                                        <option value="">Select rating</option>
+                                        <option value="5">5 - Excellent</option>
+                                        <option value="4">4 - Good</option>
+                                        <option value="3">3 - Average</option>
+                                        <option value="2">2 - Poor</option>
+                                        <option value="1">1 - Very Poor</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small">Feedback (optional)</label>
+                                    <textarea class="form-control" name="feedback" rows="2" maxlength="1000"
+                                        placeholder="Share your experience"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-star me-1"></i>Submit Feedback
+                                </button>
+                            </form>
+                        </div>
+                        {% elif complaint.citizen_rating %}
+                        <div class="mt-4 p-3 bg-light rounded-3">
+                            <h6 class="fw-semibold mb-1">Citizen Feedback</h6>
+                            <p class="mb-1">
+                                <strong>Rating:</strong> {{ complaint.citizen_rating }}/5
+                            </p>
+                            {% if complaint.citizen_feedback %}
+                            <p class="mb-0 text-muted small">{{ complaint.citizen_feedback }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {% if complaint.status == 'Closed' %}
+                        <div class="mt-4">
+                            <h6 class="fw-semibold mb-2">Not satisfied with closure?</h6>
+                            <form method="POST" action="{{ url_for('public.reopen_complaint', tracking_id=complaint.tracking_id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div class="mb-2">
+                                    <textarea class="form-control" name="reopen_reason" rows="3" minlength="10" maxlength="1000"
+                                        placeholder="Explain why the complaint should be reopened..." required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-warning btn-sm text-dark">
+                                    <i class="fas fa-rotate-left me-1"></i>Request Reopen
+                                </button>
+                            </form>
                         </div>
                         {% endif %}
                         

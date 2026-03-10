@@ -179,20 +179,15 @@ init_database() {
     
     source venv/bin/activate
     
-    # Create database tables
-    flask db upgrade || {
-        log_warning "Flask migrate not initialized, creating tables..."
-        python3 -c "
-from app import create_app, db
-from app.models import Department, Service, User
-app = create_app('production')
-with app.app_context():
-    db.create_all()
-"
-    }
+    # Create database tables and baseline reference data
+    python3 deploy/bootstrap.py
     
     # Seed with demo data
-    python seed.py || log_warning "Seed script failed or not found"
+    if [ "${SEED_SAMPLE_DATA:-0}" = "1" ]; then
+        python seed.py || log_warning "Seed script failed or not found"
+    else
+        log_info "Skipping sample seeding; set SEED_SAMPLE_DATA=1 to populate demo complaints"
+    fi
     
     log_success "Database initialized"
 }
@@ -314,43 +309,6 @@ setup_ssl() {
 }
 
 # ── 11. Configure Celery with Supervisor ─────────────────────
-setup_celery() {
-    log_info "Configuring Celery..."
-    
-    cat > /etc/supervisor/conf.d/mibsp_celery.conf << 'EOF'
-[program:mibsp_celery]
-command=/var/www/mibsp/venv/bin/celery -A app.celery worker --loglevel=info --concurrency=2
- directory=/var/www/mibsp
-user=www-data
-autostart=true
-autorestart=true
-stopwaitsecs=600
-killasgroup=true
-priority=998
-environment=PATH="/var/www/mibsp/venv/bin",FLASK_ENV="production"
-stdout_logfile=/var/log/mibsp/celery.log
-stderr_logfile=/var/log/mibsp/celery_err.log
-
-[program:mibsp_celery_beat]
-command=/var/www/mibsp/venv/bin/celery -A app.celery beat --loglevel=info
-directory=/var/www/mibsp
-user=www-data
-autostart=true
-autorestart=true
-stopwaitsecs=600
-killasgroup=true
-priority=999
-environment=PATH="/var/www/mibsp/venv/bin",FLASK_ENV="production"
-stdout_logfile=/var/log/mibsp/celery_beat.log
-stderr_logfile=/var/log/mibsp/celery_beat_err.log
-EOF
-    
-    supervisorctl reread
-    supervisorctl update
-    
-    log_success "Celery configured"
-}
-
 # ── 12. Setup Daily Backup Cron ───────────────────────────────
 setup_backup() {
     log_info "Setting up daily backup..."
@@ -417,8 +375,6 @@ start_services() {
     log_info "Starting services..."
     
     systemctl start mibsp
-    supervisorctl start mibsp_celery
-    supervisorctl start mibsp_celery_beat
     
     log_success "Services started"
 }
@@ -474,7 +430,6 @@ main() {
     create_gunicorn_service
     configure_nginx
     setup_ssl
-    setup_celery
     setup_backup
     set_permissions
     start_services

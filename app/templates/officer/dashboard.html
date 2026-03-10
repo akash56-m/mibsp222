@@ -3,24 +3,24 @@
 {% block title %}Officer Dashboard{% endblock %}
 
 {% block content %}
-<div class="py-4 bg-light">
+<div class="py-4 bg-light mobile-data-page">
     <div class="container">
         <!-- Header -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <div>
                 <h4 class="fw-bold mb-1"><i class="fas fa-tachometer-alt me-2 text-primary"></i>Officer Dashboard</h4>
                 <p class="text-muted mb-0">Welcome back, {{ session.username }}</p>
             </div>
             <div>
                 <span class="badge bg-primary fs-6 px-3 py-2">
-                    <i class="fas fa-user-shield me-1"></i>Officer
+                    <i class="fas fa-user-shield me-1"></i>{{ session.role|replace('_', ' ')|title }}
                 </span>
             </div>
         </div>
         
         <!-- Stats Cards -->
         <div class="row g-3 mb-4">
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 border-start border-4 border-primary">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
@@ -35,7 +35,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 border-start border-4 border-warning">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
@@ -50,7 +50,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 border-start border-4 border-info">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
@@ -65,7 +65,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 border-start border-4 border-success">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
@@ -81,6 +81,21 @@
                 </div>
             </div>
         </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-6">
+                <div class="alert alert-danger mb-0">
+                    <strong><i class="fas fa-triangle-exclamation me-1"></i>Delayed:</strong>
+                    {{ stats.delayed }} exceeded SLA
+                </div>
+            </div>
+            <div class="col-6 col-md-6">
+                <div class="alert alert-warning mb-0">
+                    <strong><i class="fas fa-flag me-1"></i>High Priority:</strong>
+                    {{ stats.high_priority }} urgent complaints
+                </div>
+            </div>
+        </div>
         
         <div class="row g-4">
             <!-- Assigned Complaints -->
@@ -93,11 +108,11 @@
                     <div class="card-body p-0">
                         {% if assigned_complaints %}
                         <div class="table-responsive">
-                            <table class="table table-hover mb-0">
+                            <table class="table table-hover mb-0 table-sm mobile-data-table">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Tracking ID</th>
-                                        <th>Department</th>
+                                        <th class="d-none d-md-table-cell">Department</th>
                                         <th>Status</th>
                                         <th>Submitted</th>
                                         <th>Action</th>
@@ -106,18 +121,23 @@
                                 <tbody>
                                     {% for complaint in assigned_complaints %}
                                     <tr>
-                                        <td><code>{{ complaint.tracking_id }}</code></td>
-                                        <td>{{ complaint.department.name }}</td>
-                                        <td>
+                                        <td data-label="Tracking ID">
+                                            <code>{{ complaint.tracking_id }}</code>
+                                        </td>
+                                        <td data-label="Department" class="d-none d-md-table-cell">{{ complaint.department.name }}</td>
+                                        <td data-label="Status">
                                             <span class="badge bg-{{ complaint.status|status_badge }}">
                                                 {{ complaint.status }}
                                             </span>
                                         </td>
-                                        <td>{{ complaint.submitted_at|format_datetime }}</td>
-                                        <td>
+                                        <td data-label="Submitted">
+                                            <span class="d-none d-md-inline">{{ complaint.submitted_at|format_datetime }}</span>
+                                            <span class="d-md-none">{{ complaint.submitted_at|format_datetime('%d %b %H:%M') }}</span>
+                                        </td>
+                                        <td data-label="Action">
                                             <a href="{{ url_for('officer.complaint_detail', tracking_id=complaint.tracking_id) }}" 
                                                class="btn btn-sm btn-primary">
-                                                <i class="fas fa-eye me-1"></i>View
+                                                <i class="fas fa-eye"></i><span class="d-none d-md-inline ms-1">View</span>
                                             </a>
                                         </td>
                                     </tr>
@@ -143,7 +163,7 @@
                     </div>
                     <div class="card-body p-0">
                         {% if unassigned_complaints %}
-                        <div class="list-group list-group-flush">
+                        <div class="list-group list-group-flush mobile-compact-list">
                             {% for complaint in unassigned_complaints %}
                             <div class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-start">

@@ -19,10 +19,17 @@
                 <h4 class="fw-bold mb-1"><i class="fas fa-history me-2 text-primary"></i>Audit Logs</h4>
                 <p class="text-muted mb-0">Immutable record of all system actions</p>
             </div>
-            <span class="badge bg-info">
-                <i class="fas fa-lock me-1"></i>Hash-Chained
-            </span>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-outline-primary" id="verifyChainBtn">
+                    <i class="fas fa-shield-alt me-1"></i>Verify Chain
+                </button>
+                <span class="badge bg-info">
+                    <i class="fas fa-lock me-1"></i>Hash-Chained
+                </span>
+            </div>
         </div>
+
+        <div id="verifyChainResult" class="mb-3 d-none"></div>
         
         <!-- Filters -->
         <div class="card shadow-sm border-0 mb-4">
@@ -80,6 +87,8 @@
                                 <th>Action</th>
                                 <th>Details</th>
                                 <th>IP Address</th>
+                                <th>Prev Hash</th>
+                                <th>Row Hash</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -101,10 +110,12 @@
                                     {% endif %}
                                 </td>
                                 <td><small class="text-muted">{{ log.ip_address or '-' }}</small></td>
+                                <td><code class="small">{{ (log.previous_hash or '-')[:12] }}</code></td>
+                                <td><code class="small">{{ (log.row_hash or '-')[:12] }}</code></td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                                     <p class="text-muted mb-0">No audit logs found.</p>
                                 </td>
@@ -167,4 +178,36 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('verifyChainBtn');
+    const output = document.getElementById('verifyChainResult');
+    if (!btn || !output) {
+        return;
+    }
+
+    btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verifying...';
+        output.className = 'mb-3 d-none';
+        output.textContent = '';
+
+        try {
+            const response = await fetch('{{ url_for("admin.verify_audit_logs") }}');
+            const payload = await response.json();
+            output.className = `alert ${response.ok ? 'alert-success' : 'alert-danger'} mb-3`;
+            output.textContent = payload.message || 'Verification completed.';
+        } catch (err) {
+            output.className = 'alert alert-danger mb-3';
+            output.textContent = 'Unable to verify chain right now.';
+        } finally {
+        btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-shield-alt me-1"></i>Verify Chain';
+        }
+    });
+});
+</script>
 {% endblock %}

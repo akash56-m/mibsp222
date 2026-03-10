@@ -4,8 +4,10 @@ Supports: Development (SQLite), VPS Production (MySQL), Render (PostgreSQL)
 """
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 
 
 class Config:
@@ -52,6 +54,20 @@ class Config:
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    NOTIFICATION_TO_EMAIL = os.environ.get('NOTIFICATION_TO_EMAIL')
+
+    # AI Assistant (Optional)
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+    OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+    AI_RATE_MIN_INTERVAL_SECONDS = int(os.environ.get('AI_RATE_MIN_INTERVAL_SECONDS', 3))
+    AI_RATE_WINDOW_SECONDS = int(os.environ.get('AI_RATE_WINDOW_SECONDS', 60))
+    AI_RATE_MAX_REQUESTS_PER_WINDOW = int(os.environ.get('AI_RATE_MAX_REQUESTS_PER_WINDOW', 20))
+    ADMIN_EMAIL_2FA_ENABLED = os.environ.get('ADMIN_EMAIL_2FA_ENABLED', 'false').lower() in ['true', 'on', '1']
+    ADMIN_OTP_EXPIRY_MINUTES = int(os.environ.get('ADMIN_OTP_EXPIRY_MINUTES', 5))
+    ADMIN_OTP_LENGTH = int(os.environ.get('ADMIN_OTP_LENGTH', 6))
+
+    # Runtime performance guard for SLA recalculation on read-heavy pages
+    SLA_CHECK_INTERVAL_SECONDS = int(os.environ.get('SLA_CHECK_INTERVAL_SECONDS', 20))
     
     @staticmethod
     def init_app(app):
@@ -83,6 +99,7 @@ class TestingConfig(Config):
     
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False  # Disable CSRF for testing
+    SLA_CHECK_INTERVAL_SECONDS = 0  # Always run in tests for determinism
     
     # Use temporary upload folder for tests
     UPLOAD_FOLDER = '/tmp/mibsp_test_uploads'

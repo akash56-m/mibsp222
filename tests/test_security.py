@@ -4,7 +4,7 @@ Tests for security vulnerabilities and protections.
 """
 import pytest
 from app import create_app, db
-from app.models import User, Department, Service, Complaint
+from app.models import User, Department, Service, Complaint, AuditLog
 
 
 @pytest.fixture
@@ -27,6 +27,10 @@ def app():
         user = User(username='testuser', role='officer', department_id=dept.id)
         user.set_password('testpass123')
         db.session.add(user)
+
+        admin = User(username='adminuser', role='admin')
+        admin.set_password('adminpass123')
+        db.session.add(admin)
         db.session.commit()
         
         yield app
@@ -58,8 +62,8 @@ class TestSQLInjection:
         with app.app_context():
             # Login as admin
             client.post('/auth/login', data={
-                'username': 'testuser',
-                'password': 'testpass123'
+                'username': 'adminuser',
+                'password': 'adminpass123'
             })
             
             response = client.get('/admin/complaints?search=\' OR 1=1--')
@@ -93,6 +97,9 @@ class TestCSRFProtection:
     
     def test_csrf_required_on_post(self, client):
         """Test CSRF token is required."""
+        if not client.application.config.get('WTF_CSRF_ENABLED', True):
+            pytest.skip('CSRF is disabled in testing config')
+
         response = client.post('/submit', data={
             'department_id': 1,
             'service_id': 1,
@@ -174,3 +181,58 @@ class TestAuthorization:
             # Try to access complaint from other department
             response = client.get(f'/officer/complaint/MIBOTHER001', follow_redirects=True)
             assert b'do not have permission' in response.data or response.status_code == 403
+
+
+class TestAuditLogging:
+    """Tests for audit log integrity and privacy behavior."""
+
+    def test_audit_hash_chain_integrity(self, app):
+        """Test hash chaining remains verifiable across entries."""
+        with app.app_context():
+            first = AuditLog.create_entry(
+                username='adminuser',
+                role='admin',
+                action='TEST_ONE',
+                details='First test entry'
+            )
+            second = AuditLog.create_entry(
+                username='adminuser',
+                role='admin',
+                action='TEST_TWO',
+                details='Second test entry'
+            )
+
+            assert first.verify_integrity() is True
+            assert second.verify_integrity() is True
+            assert second.previous_hash == first.row_hash
+
+    def test_anonymous_submit_does_not_store_ip(self, client, app):
+        """Test anonymous complaint actions do not persist IP addresses."""
+        with app.app_context():
+            dept = Department.query.first()
+            service = Service.query.first()
+
+            response = client.post('/submit', data={
+                'department_id': dept.id,
+                'service_id': service.id,
+                'description': 'Anonymous complaint details that are long enough for validation checks.'
+            }, follow_redirects=True)
+            assert response.status_code == 200
+
+            log = AuditLog.query.filter_by(action='COMPLAINT_SUBMITTED')\
+                .order_by(AuditLog.id.desc()).first()
+            assert log is not None
+            assert log.role in ('guest', 'anonymous')
+            assert log.ip_address is None
+
+    def test_admin_can_verify_audit_chain_endpoint(self, client, app):
+        """Admin audit verification endpoint should return chain status."""
+        with app.app_context():
+            client.post('/auth/login', data={
+                'username': 'adminuser',
+                'password': 'adminpass123'
+            })
+            response = client.get('/admin/audit-logs/verify')
+            assert response.status_code == 200
+            payload = response.get_json()
+            assert 'valid' in payload

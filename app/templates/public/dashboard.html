@@ -3,287 +3,325 @@
 {% block title %}Public Dashboard{% endblock %}
 
 {% block content %}
-<div class="py-5 bg-light">
+{% set total = stats.total or 0 %}
+{% set pending = stats.pending or 0 %}
+{% set under_review = stats.under_review or 0 %}
+{% set action_taken = stats.action_taken or 0 %}
+{% set delayed = stats.delayed or 0 %}
+{% set reopened = stats.reopened or 0 %}
+{% set closed = stats.closed or 0 %}
+{% set high_priority = stats.high_priority or 0 %}
+{% set in_progress = under_review + action_taken + delayed + reopened %}
+{% set sla_compliance = stats.sla_compliance or 0 %}
+{% set backlog_rate = (((pending + in_progress) / total * 100) if total > 0 else 0)|round(1) %}
+{% set active_departments = (dept_stats | selectattr('total', 'gt', 0) | list | length) %}
+{% set ranked_departments = dept_stats | sort(attribute='score', reverse=true) %}
+
+<section class="py-5 dashboard-shell mobile-data-page">
     <div class="container">
-        <!-- Breadcrumb -->
-        <nav aria-label="breadcrumb" class="mb-4">
-            <ol class="breadcrumb">
+        <nav aria-label="breadcrumb" class="mb-4" data-reveal>
+            <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a href="{{ url_for('public.index') }}">Home</a></li>
                 <li class="breadcrumb-item active">Public Dashboard</li>
             </ol>
         </nav>
-        
-        <!-- Header -->
-        <div class="text-center mb-5">
-            <h2 class="fw-bold">Public Transparency Dashboard</h2>
-            <p class="text-muted">Real-time statistics on municipal complaint handling</p>
+
+        <div class="dashboard-hero p-4 p-md-5 mb-4" data-reveal>
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-8">
+                    <div class="dashboard-pill mb-3">
+                        <i class="fas fa-chart-line me-2"></i>Public Transparency Dashboard
+                    </div>
+                    <h2 class="fw-bold mb-3">Live Municipal Accountability Analytics</h2>
+                    <p class="text-muted mb-3">Explore complaint volume, SLA performance, and department outcomes through near real-time public data.</p>
+                    <div class="dashboard-pills d-flex flex-wrap gap-2">
+                        <span class="dashboard-mini-pill"><i class="fas fa-building me-1"></i>{{ dept_stats|length }} departments listed</span>
+                        <span class="dashboard-mini-pill" id="activeDepartmentsPill"><i class="fas fa-circle-check me-1"></i>{{ active_departments }} active departments</span>
+                        <span class="dashboard-mini-pill"><i class="fas fa-link me-1"></i>Anonymous tracking enabled</span>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="dashboard-actions p-3 p-md-4">
+                        <span class="dashboard-live"><i class="fas fa-circle text-success me-2"></i>Live data feed</span>
+                        <label for="exportMonth" class="form-label small fw-semibold mt-3 mb-1">Export month</label>
+                        <input type="month" id="exportMonth" class="form-control form-control-sm mb-2">
+                        <a href="{{ url_for('public.export_monthly_csv') }}" id="exportCsvBtn" class="btn btn-outline-primary btn-sm w-100 mb-2">
+                            <i class="fas fa-file-csv me-1"></i>Export Monthly CSV
+                        </a>
+                        <a href="{{ url_for('public.geo_heatmap') }}" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-map-location-dot me-1"></i>Open Geo Heatmap
+                        </a>
+                        <p class="dashboard-updated small mb-0 mt-3" id="dashboardUpdatedAt"></p>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <!-- Key Metrics -->
+
+        <div class="chart-card dashboard-filter-card mb-4" data-reveal>
+            <div class="card-body p-3 p-md-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label for="dashboardDeptFilter" class="form-label small fw-semibold mb-1">Department</label>
+                        <select id="dashboardDeptFilter" class="form-select form-select-sm">
+                            <option value="">All Departments</option>
+                            {% for dept in dept_stats|sort(attribute='name') %}
+                            <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dashboardStatusFilter" class="form-label small fw-semibold mb-1">Status</label>
+                        <select id="dashboardStatusFilter" class="form-select form-select-sm">
+                            <option value="">All Statuses</option>
+                            {% for status in status_options %}
+                            <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="dashboardFromMonth" class="form-label small fw-semibold mb-1">From Month</label>
+                        <input type="month" id="dashboardFromMonth" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="dashboardToMonth" class="form-label small fw-semibold mb-1">To Month</label>
+                        <input type="month" id="dashboardToMonth" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2 d-grid gap-2 dashboard-filter-actions">
+                        <button type="button" class="btn btn-primary btn-sm" id="dashboardApplyBtn">
+                            <i class="fas fa-filter me-1"></i>Apply
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="dashboardResetBtn">
+                            <i class="fas fa-rotate me-1"></i>Reset
+                        </button>
+                    </div>
+                </div>
+                <div id="dashboardFilterError" class="small text-danger mt-2 d-none"></div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-primary bg-opacity-10 text-primary"><i class="fas fa-file-alt"></i></div>
+                    <p class="metric-label mb-1">Total</p>
+                    <h4 id="metricTotal" class="metric-value mb-1 counter-value" data-count="{{ total }}" data-decimals="0">{{ total }}</h4>
+                    <small class="text-muted">Complaints recorded</small>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-warning bg-opacity-10 text-warning"><i class="fas fa-hourglass-half"></i></div>
+                    <p class="metric-label mb-1">Pending</p>
+                    <h4 id="metricPending" class="metric-value mb-1 counter-value" data-count="{{ pending }}" data-decimals="0">{{ pending }}</h4>
+                    <small class="text-muted">Waiting initial review</small>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-info bg-opacity-10 text-info"><i class="fas fa-list-check"></i></div>
+                    <p class="metric-label mb-1">In Progress</p>
+                    <h4 id="metricInProgress" class="metric-value mb-1 counter-value" data-count="{{ in_progress }}" data-decimals="0">{{ in_progress }}</h4>
+                    <small class="text-muted">Active workflow items</small>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-success bg-opacity-10 text-success"><i class="fas fa-check-circle"></i></div>
+                    <p class="metric-label mb-1">Resolved</p>
+                    <h4 id="metricResolved" class="metric-value mb-1 counter-value" data-count="{{ closed }}" data-decimals="0">{{ closed }}</h4>
+                    <small class="text-muted">Closed complaints</small>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-danger bg-opacity-10 text-danger"><i class="fas fa-bolt"></i></div>
+                    <p class="metric-label mb-1">High Priority</p>
+                    <h4 id="metricHighPriority" class="metric-value mb-1 counter-value" data-count="{{ high_priority }}" data-decimals="0">{{ high_priority }}</h4>
+                    <small class="text-muted">Marked urgent</small>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-xl-2" data-reveal>
+                <div class="metric-card metric-card-left h-100">
+                    <div class="metric-icon bg-success bg-opacity-10 text-success"><i class="fas fa-gauge-high"></i></div>
+                    <p class="metric-label mb-1">SLA Compliance</p>
+                    <h4 id="metricSlaCompliance" class="metric-value mb-1 counter-value" data-count="{{ sla_compliance }}" data-decimals="2">{{ '%.2f'|format(sla_compliance) }}</h4>
+                    <small class="text-muted">% closed within SLA</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-5">
+            <div class="col-6 col-lg-4" data-reveal>
+                <div class="dashboard-insight dashboard-insight-danger h-100">
+                    <div class="dashboard-insight-title"><i class="fas fa-triangle-exclamation me-2"></i>Delay Pressure</div>
+                    <div class="dashboard-insight-value" id="insightDelayedValue">{{ delayed }} delayed complaints</div>
+                    <div class="small text-muted">Cases that have exceeded SLA timeline.</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-4" data-reveal>
+                <div class="dashboard-insight dashboard-insight-neutral h-100">
+                    <div class="dashboard-insight-title"><i class="fas fa-rotate-left me-2"></i>Citizen Reopens</div>
+                    <div class="dashboard-insight-value" id="insightReopenedValue">{{ reopened }} reopened complaints</div>
+                    <div class="small text-muted">Complaints reopened after closure for additional action.</div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4" data-reveal>
+                <div class="dashboard-insight dashboard-insight-success h-100">
+                    <div class="dashboard-insight-title"><i class="fas fa-percent me-2"></i>Backlog Pressure</div>
+                    <div class="dashboard-insight-value" id="insightBacklogValue">{{ backlog_rate }}%</div>
+                    <div class="small text-muted">Share of total complaints still not closed.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8" data-reveal>
+                <div class="chart-card h-100">
+                    <div class="card-header bg-transparent border-0 py-3 px-4"><h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Monthly Complaint Trends</h5></div>
+                    <div class="card-body px-4 pb-4">
+                        <div class="chart-canvas-wrap">
+                            <canvas id="monthlyChart"></canvas>
+                            <div class="chart-loading" id="monthlyChartState"><i class="fas fa-spinner fa-spin me-2"></i>Loading trend data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4" data-reveal>
+                <div class="chart-card h-100">
+                    <div class="card-header bg-transparent border-0 py-3 px-4"><h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Status Breakdown</h5></div>
+                    <div class="card-body px-4 pb-4">
+                        <div class="chart-canvas-wrap">
+                            <canvas id="statusChart"></canvas>
+                            <div class="chart-loading" id="statusChartState"><i class="fas fa-spinner fa-spin me-2"></i>Loading status data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row g-4 mb-5">
-            <div class="col-md-3">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="metric-icon bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="fas fa-file-alt fa-2x"></i>
+            <div class="col-lg-8" data-reveal>
+                <div class="chart-card h-100">
+                    <div class="card-header bg-transparent border-0 py-3 px-4"><h5 class="mb-0"><i class="fas fa-building me-2 text-primary"></i>Department Workload Comparison</h5></div>
+                    <div class="card-body px-4 pb-4">
+                        <div class="chart-canvas-wrap chart-canvas-wrap-short">
+                            <canvas id="deptChart"></canvas>
+                            <div class="chart-loading" id="deptChartState"><i class="fas fa-spinner fa-spin me-2"></i>Loading department data</div>
                         </div>
-                        <h3 class="fw-bold mb-1">{{ stats.total }}</h3>
-                        <p class="text-muted mb-0">Total Complaints</p>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="metric-icon bg-warning bg-opacity-10 text-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="fas fa-clock fa-2x"></i>
+            <div class="col-lg-4" data-reveal>
+                <div class="chart-card mb-4">
+                    <div class="card-header bg-transparent border-0 py-3 px-4"><h6 class="mb-0"><i class="fas fa-stopwatch me-2 text-primary"></i>Avg Resolution Time (hrs)</h6></div>
+                    <div class="card-body px-4 pb-4">
+                        <div class="chart-canvas-wrap chart-canvas-wrap-short">
+                            <canvas id="resolutionTimeChart"></canvas>
+                            <div class="chart-loading" id="resolutionTimeChartState"><i class="fas fa-spinner fa-spin me-2"></i>Loading resolution time</div>
                         </div>
-                        <h3 class="fw-bold mb-1">{{ stats.pending }}</h3>
-                        <p class="text-muted mb-0">Pending</p>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="metric-icon bg-info bg-opacity-10 text-info rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="fas fa-tasks fa-2x"></i>
+                <div class="chart-card">
+                    <div class="card-header bg-transparent border-0 py-3 px-4"><h6 class="mb-0"><i class="fas fa-shield-alt me-2 text-primary"></i>SLA Compliance Trend</h6></div>
+                    <div class="card-body px-4 pb-4">
+                        <div class="chart-canvas-wrap chart-canvas-wrap-short">
+                            <canvas id="slaComplianceChart"></canvas>
+                            <div class="chart-loading" id="slaComplianceChartState"><i class="fas fa-spinner fa-spin me-2"></i>Loading SLA trend</div>
                         </div>
-                        <h3 class="fw-bold mb-1">{{ stats.under_review + stats.action_taken }}</h3>
-                        <p class="text-muted mb-0">In Progress</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="metric-icon bg-success bg-opacity-10 text-success rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
-                            <i class="fas fa-check-circle fa-2x"></i>
-                        </div>
-                        <h3 class="fw-bold mb-1">{{ stats.closed }}</h3>
-                        <p class="text-muted mb-0">Resolved</p>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Charts Row -->
-        <div class="row g-4 mb-5">
-            <div class="col-lg-8">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Monthly Complaint Trends</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="monthlyChart" height="250"></canvas>
-                    </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6" data-reveal>
+                <div class="dashboard-insight dashboard-insight-success mb-0">
+                    <div class="dashboard-insight-title"><i class="fas fa-trophy me-2"></i>Best Department</div>
+                    <div class="dashboard-insight-value" id="bestDepartmentName">{{ best_department.name if best_department else 'N/A' }}</div>
+                    <div class="small text-muted">Score <span id="bestDepartmentScore">{{ best_department.score if best_department else 'N/A' }}</span></div>
                 </div>
             </div>
-            <div class="col-lg-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Status Breakdown</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="statusChart" height="250"></canvas>
-                    </div>
+            <div class="col-md-6" data-reveal>
+                <div class="dashboard-insight dashboard-insight-warning mb-0">
+                    <div class="dashboard-insight-title"><i class="fas fa-arrow-trend-down me-2"></i>Most Delayed</div>
+                    <div class="dashboard-insight-value" id="worstDepartmentName">{{ worst_department.name if worst_department else 'N/A' }}</div>
+                    <div class="small text-muted">Score <span id="worstDepartmentScore">{{ worst_department.score if worst_department else 'N/A' }}</span></div>
                 </div>
             </div>
         </div>
-        
-        <!-- Department Stats -->
-        <div class="row g-4 mb-5">
-            <div class="col-12">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-building me-2 text-primary"></i>Department Performance</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="deptChart" height="150"></canvas>
-                    </div>
-                </div>
+
+        <div class="chart-card mb-5" data-reveal>
+            <div class="card-header bg-transparent border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-ranking-star me-2 text-primary"></i>Department Scoreboard</h5>
+                <span class="small text-muted">Sorted by transparency score</span>
             </div>
-        </div>
-        
-        <!-- Department Cards -->
-        <div class="row g-4">
-            {% for dept in dept_stats %}
-            <div class="col-md-6 col-lg-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h6 class="fw-semibold mb-3">{{ dept.name }}</h6>
-                        <div class="row g-2 text-center">
-                            <div class="col-4">
-                                <div class="p-2 bg-light rounded-2">
-                                    <div class="fw-bold">{{ dept.total }}</div>
-                                    <small class="text-muted">Total</small>
+            <div class="card-body px-4 pb-4">
+                <div class="row g-3" id="deptScoreboardGrid">
+                    {% for dept in ranked_departments %}
+                    <div class="col-md-6 col-xl-4">
+                        <div class="dept-rank-card h-100">
+                            <div class="dept-rank-head mb-3">
+                                <div>
+                                    <h6 class="fw-semibold mb-1">{{ dept.name }}</h6>
+                                    <p class="small text-muted mb-0">{{ dept.total }} total complaints</p>
                                 </div>
+                                <span class="dept-rank-badge">#{{ loop.index }}</span>
                             </div>
-                            <div class="col-4">
-                                <div class="p-2 bg-warning bg-opacity-10 rounded-2">
-                                    <div class="fw-bold text-warning">{{ dept.pending }}</div>
-                                    <small class="text-muted">Pending</small>
-                                </div>
+                            <div class="row g-2 text-center mb-3">
+                                <div class="col-4"><div class="dept-rank-stat"><div class="fw-bold">{{ dept.pending }}</div><small class="text-muted">Pending</small></div></div>
+                                <div class="col-4"><div class="dept-rank-stat dept-rank-stat-success"><div class="fw-bold text-success">{{ dept.closed }}</div><small class="text-muted">Closed</small></div></div>
+                                <div class="col-4"><div class="dept-rank-stat dept-rank-stat-danger"><div class="fw-bold text-danger">{{ dept.delayed }}</div><small class="text-muted">Delayed</small></div></div>
                             </div>
-                            <div class="col-4">
-                                <div class="p-2 bg-success bg-opacity-10 rounded-2">
-                                    <div class="fw-bold text-success">{{ dept.closed }}</div>
-                                    <small class="text-muted">Closed</small>
-                                </div>
-                            </div>
-                        </div>
-                        {% if dept.total > 0 %}
-                        <div class="mt-3">
-                            <div class="d-flex justify-content-between small mb-1">
-                                <span>Resolution Rate</span>
-                                <span class="fw-semibold">{{ dept.resolution_rate }}%</span>
-                            </div>
-                            <div class="progress" style="height: 6px;">
-                                <div class="progress-bar bg-success" style="width: {{ dept.resolution_rate }}%"></div>
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <!-- Recent Activity -->
-        {% if recent_complaints %}
-        <div class="row mt-5">
-            <div class="col-12">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0"><i class="fas fa-history me-2 text-primary"></i>Recent Activity (Last 30 Days)</h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Tracking ID</th>
-                                        <th>Department</th>
-                                        <th>Service</th>
-                                        <th>Status</th>
-                                        <th>Submitted</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for complaint in recent_complaints %}
-                                    <tr>
-                                        <td><code>{{ complaint.tracking_id }}</code></td>
-                                        <td>{{ complaint.department.name }}</td>
-                                        <td>{{ complaint.service.name }}</td>
-                                        <td>
-                                            <span class="badge bg-{{ complaint.status|status_badge }}">
-                                                {{ complaint.status }}
-                                            </span>
-                                        </td>
-                                        <td>{{ complaint.submitted_at|format_datetime }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                            <div class="d-flex justify-content-between small mb-1"><span>Resolution Rate</span><span class="fw-semibold">{{ dept.resolution_rate }}%</span></div>
+                            <div class="progress" style="height: 6px;"><div class="progress-bar bg-success" style="width: {{ dept.resolution_rate }}%"></div></div>
+                            <div class="d-flex justify-content-between small mt-2"><span class="text-muted">Delay penalty {{ dept.delay_penalty }}%</span><span class="fw-semibold">Score {{ dept.score }}</span></div>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
-        {% endif %}
+
+        <div class="chart-card" data-reveal>
+            <div class="card-header bg-transparent border-0 py-3 px-4"><h5 class="mb-0"><i class="fas fa-history me-2 text-primary"></i>Recent Activity (Last 30 Days)</h5></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 table-sm mobile-data-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Tracking ID</th>
+                                <th>Department</th>
+                                <th class="d-none d-md-table-cell">Service</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentActivityBody">
+                            {% if recent_complaints %}
+                                {% for complaint in recent_complaints %}
+                                <tr>
+                                    <td data-label="Tracking ID"><code>{{ complaint.tracking_id }}</code></td>
+                                    <td data-label="Department">{{ complaint.department.name }}</td>
+                                    <td data-label="Service" class="d-none d-md-table-cell">{{ complaint.service.name }}</td>
+                                    <td data-label="Status"><span class="badge bg-{{ complaint.status|status_badge }}">{{ complaint.status }}</span></td>
+                                    <td data-label="Submitted">
+                                        <span class="d-none d-md-inline">{{ complaint.submitted_at|format_datetime }}</span>
+                                        <span class="d-md-none">{{ complaint.submitted_at|format_datetime('%d %b %H:%M') }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr class="table-empty-state"><td colspan="5" class="text-center text-muted py-4">No recent activity for current selection.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Common chart options
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom'
-            }
-        }
-    };
-    
-    // Fetch and render monthly chart
-    fetch('/api/chart/monthly')
-        .then(response => response.json())
-        .then(data => {
-            new Chart(document.getElementById('monthlyChart'), {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Complaints',
-                        data: data.data,
-                        borderColor: '#1a56db',
-                        backgroundColor: 'rgba(26, 86, 219, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    ...commonOptions,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
-                }
-            });
-        });
-    
-    // Fetch and render status chart
-    fetch('/api/chart/status')
-        .then(response => response.json())
-        .then(data => {
-            new Chart(document.getElementById('statusChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        data: data.data,
-                        backgroundColor: ['#f59e0b', '#06b6d4', '#1a56db', '#10b981']
-                    }]
-                },
-                options: commonOptions
-            });
-        });
-    
-    // Fetch and render department chart
-    fetch('/api/chart/dept')
-        .then(response => response.json())
-        .then(data => {
-            new Chart(document.getElementById('deptChart'), {
-                type: 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Total Complaints',
-                        data: data.data,
-                        backgroundColor: '#1a56db'
-                    }]
-                },
-                options: {
-                    ...commonOptions,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
-                    }
-                }
-            });
-        });
-});
-</script>
+<script src="{{ url_for('static', filename='js/dashboard_public.js') }}"></script>
 {% endblock %}
