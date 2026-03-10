@@ -1,0 +1,18 @@
+{
+  "name": "Municipal Integrity & Bribe-Free Service Portal",
+  "short_name": "MIBSP",
+  "description": "Report municipal complaints anonymously and track progress transparently.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f9ff",
+  "theme_color": "#0f2742",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

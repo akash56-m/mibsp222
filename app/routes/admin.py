@@ -16,6 +16,19 @@ from app.tasks import send_status_update_notification
 
 admin_bp = Blueprint('admin', __name__)
 
+@admin_bp.route('/')
+@admin_required
+def admin_root():
+    """Compatibility root admin entrypoint."""
+    return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/login')
+def legacy_admin_login():
+    """Compatibility route for legacy /admin/login bookmarks."""
+    next_page = request.args.get('next', '')
+    return redirect(url_for('auth.login', next=next_page))
+
 
 # =============================================================================
 # DASHBOARD

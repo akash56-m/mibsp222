@@ -1131,3 +1131,9 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
         }), 503
+
+
+@public_bp.route('/api/health')
+def api_health_check():
+    """Backward-compatible JSON health endpoint."""
+    return health_check()

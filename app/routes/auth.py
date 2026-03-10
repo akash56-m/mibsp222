@@ -167,6 +167,12 @@ def login():
     return render_template('auth/login.html', next=next_page)
 
 
+@auth_bp.route('/admin/login')
+def legacy_admin_login_redirect():
+    """Compatibility route for older /admin/login bookmarks."""
+    return redirect(url_for('auth.login', next=_resolve_next_target()))
+
+
 @auth_bp.route('/verify-otp', methods=['GET', 'POST'])
 def verify_admin_otp():
     """Verify admin email OTP when 2FA is enabled."""

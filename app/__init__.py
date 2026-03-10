@@ -3,7 +3,7 @@ MIBSP Flask Application Factory
 Creates and configures the Flask application with all extensions.
 """
 from sqlalchemy import text, inspect
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -59,6 +59,11 @@ def create_app(config_name=None):
     
     # Register template filters
     register_template_filters(app)
+
+    @app.route('/admin/auth/login')
+    def legacy_admin_auth_login():
+        """Compatibility route for /admin/auth/login bookmarks."""
+        return redirect(url_for('auth.login', next=request.args.get('next', '')))
     
     # Keep DB schema aligned with current model fields across environments.
     # Production instances may have legacy schemas from older releases.
