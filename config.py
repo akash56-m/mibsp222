@@ -70,7 +70,8 @@ class Config:
     ADMIN_OTP_LENGTH = int(os.environ.get('ADMIN_OTP_LENGTH', 6))
 
     # Runtime performance guard for SLA recalculation on read-heavy pages
-    SLA_CHECK_INTERVAL_SECONDS = int(os.environ.get('SLA_CHECK_INTERVAL_SECONDS', 20))
+    SLA_CHECK_INTERVAL_SECONDS = int(os.environ.get('SLA_CHECK_INTERVAL_SECONDS', 45))
+    API_RESPONSE_CACHE_TTL_SECONDS = int(os.environ.get('API_RESPONSE_CACHE_TTL_SECONDS', 12))
     
     @staticmethod
     def init_app(app):

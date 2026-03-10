@@ -8,7 +8,7 @@ import time
 import threading
 from collections import deque
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, current_app, Response
-from sqlalchemy import text
+from sqlalchemy import text, func, case, and_
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
@@ -22,6 +22,8 @@ from app.utils import (
 public_bp = Blueprint('public', __name__)
 _ai_rate_lock = threading.Lock()
 _ai_rate_buckets = {}
+_response_cache_lock = threading.Lock()
+_response_cache = {}
 
 DASHBOARD_STATUSES = ['Pending', 'Under Review', 'Action Taken', 'Delayed', 'Reopened', 'Closed']
 STATUS_BADGE_CLASSES = {
@@ -32,6 +34,61 @@ STATUS_BADGE_CLASSES = {
     'Reopened': 'badge-reopened',
     'Closed': 'badge-closed',
 }
+
+
+def _filters_cache_key(filters):
+    """Create stable cache key tuple for dashboard filters."""
+    return (
+        filters.get('department_id') or 0,
+        filters.get('status') or '',
+        filters.get('from_month') or '',
+        filters.get('to_month') or '',
+    )
+
+
+def _cache_ttl(multiplier=1.0):
+    """Resolve API response cache TTL from app config."""
+    base_ttl = int(current_app.config.get('API_RESPONSE_CACHE_TTL_SECONDS', 12))
+    return max(1, int(base_ttl * multiplier))
+
+
+def _cache_get(cache_key):
+    """Return cached payload when present and fresh."""
+    now_ts = time.time()
+    with _response_cache_lock:
+        entry = _response_cache.get(cache_key)
+        if not entry:
+            return None
+        if entry['expires_at'] < now_ts:
+            _response_cache.pop(cache_key, None)
+            return None
+        return entry['payload']
+
+
+def _cache_set(cache_key, payload, ttl_seconds):
+    """Store API payload in short-lived in-memory cache."""
+    expires_at = time.time() + max(1, int(ttl_seconds))
+    with _response_cache_lock:
+        _response_cache[cache_key] = {
+            'payload': payload,
+            'expires_at': expires_at,
+        }
+
+        # Keep cache bounded in memory for long-running workers.
+        if len(_response_cache) > 600:
+            now_ts = time.time()
+            stale_keys = [key for key, entry in _response_cache.items() if entry['expires_at'] < now_ts]
+            for key in stale_keys:
+                _response_cache.pop(key, None)
+            if len(_response_cache) > 600:
+                for key in list(_response_cache.keys())[:120]:
+                    _response_cache.pop(key, None)
+
+
+def _invalidate_response_cache():
+    """Drop cached response payloads after writes."""
+    with _response_cache_lock:
+        _response_cache.clear()
 
 
 def _get_client_ip():
@@ -264,23 +321,40 @@ def _apply_dashboard_filters(query, filters, date_field=Complaint.submitted_at, 
 
 def _compute_dashboard_stats(filters):
     """Compute aggregate dashboard stats for current filter set."""
-    base_query = _apply_dashboard_filters(Complaint.query, filters, include_time_window=True)
+    row = _apply_dashboard_filters(
+        db.session.query(
+            func.count(Complaint.id).label('total'),
+            func.sum(case((Complaint.status == 'Pending', 1), else_=0)).label('pending'),
+            func.sum(case((Complaint.status == 'Under Review', 1), else_=0)).label('under_review'),
+            func.sum(case((Complaint.status == 'Action Taken', 1), else_=0)).label('action_taken'),
+            func.sum(case((Complaint.status == 'Delayed', 1), else_=0)).label('delayed'),
+            func.sum(case((Complaint.status == 'Reopened', 1), else_=0)).label('reopened'),
+            func.sum(case((Complaint.status == 'Closed', 1), else_=0)).label('closed'),
+            func.sum(case((Complaint.priority == 'High', 1), else_=0)).label('high_priority'),
+            func.sum(case((
+                and_(
+                    Complaint.status == 'Closed',
+                    Complaint.sla_due_at.isnot(None),
+                    Complaint.resolved_at.isnot(None),
+                    Complaint.resolved_at <= Complaint.sla_due_at
+                ),
+                1
+            ), else_=0)).label('within_sla')
+        ),
+        filters,
+        include_time_window=True
+    ).one()
 
-    total = base_query.count()
-    pending = base_query.filter(Complaint.status == 'Pending').count()
-    under_review = base_query.filter(Complaint.status == 'Under Review').count()
-    action_taken = base_query.filter(Complaint.status == 'Action Taken').count()
-    delayed = base_query.filter(Complaint.status == 'Delayed').count()
-    reopened = base_query.filter(Complaint.status == 'Reopened').count()
-    closed = base_query.filter(Complaint.status == 'Closed').count()
-    high_priority = base_query.filter(Complaint.priority == 'High').count()
-
-    closed_items = base_query.filter(Complaint.status == 'Closed').all()
-    within_sla = sum(
-        1 for item in closed_items
-        if item.sla_due_at and item.resolved_at and item.resolved_at <= item.sla_due_at
-    )
-    sla_compliance = round((within_sla / len(closed_items) * 100), 2) if closed_items else 0
+    total = int(row.total or 0)
+    pending = int(row.pending or 0)
+    under_review = int(row.under_review or 0)
+    action_taken = int(row.action_taken or 0)
+    delayed = int(row.delayed or 0)
+    reopened = int(row.reopened or 0)
+    closed = int(row.closed or 0)
+    high_priority = int(row.high_priority or 0)
+    within_sla = int(row.within_sla or 0)
+    sla_compliance = round((within_sla / closed * 100), 2) if closed else 0
     resolution_rate = round((closed / total * 100), 2) if total > 0 else 0
     in_progress = under_review + action_taken + delayed + reopened
     backlog_rate = round(((pending + in_progress) / total * 100), 2) if total > 0 else 0
@@ -307,18 +381,29 @@ def _compute_department_stats(filters):
     if filters.get('department_id'):
         departments_query = departments_query.filter(Department.id == filters['department_id'])
     departments = departments_query.all()
+    if not departments:
+        return [], None, None
+
+    aggregated_rows = _apply_dashboard_filters(
+        db.session.query(
+            Complaint.department_id.label('department_id'),
+            func.count(Complaint.id).label('total'),
+            func.sum(case((Complaint.status == 'Pending', 1), else_=0)).label('pending'),
+            func.sum(case((Complaint.status == 'Closed', 1), else_=0)).label('closed'),
+            func.sum(case((Complaint.status == 'Delayed', 1), else_=0)).label('delayed')
+        ),
+        filters,
+        include_time_window=True
+    ).group_by(Complaint.department_id).all()
+    row_by_department = {int(row.department_id): row for row in aggregated_rows}
 
     dept_stats = []
     for dept in departments:
-        dept_query = _apply_dashboard_filters(
-            Complaint.query.filter(Complaint.department_id == dept.id),
-            filters,
-            include_time_window=True
-        )
-        total = dept_query.count()
-        pending = dept_query.filter(Complaint.status == 'Pending').count()
-        closed = dept_query.filter(Complaint.status == 'Closed').count()
-        delayed = dept_query.filter(Complaint.status == 'Delayed').count()
+        row = row_by_department.get(int(dept.id))
+        total = int(row.total or 0) if row else 0
+        pending = int(row.pending or 0) if row else 0
+        closed = int(row.closed or 0) if row else 0
+        delayed = int(row.delayed or 0) if row else 0
         resolution_rate = round((closed / total * 100), 1) if total > 0 else 0
         delay_penalty = round((delayed / total * 100) * 0.5, 1) if total > 0 else 0
         transparency_score = round(max(resolution_rate - delay_penalty, 0), 1)
@@ -506,6 +591,7 @@ def submit_complaint():
             
             db.session.add(complaint)
             db.session.commit()
+            _invalidate_response_cache()
             
             # Log the submission (anonymous - no user)
             log_action('COMPLAINT_SUBMITTED', 
@@ -608,6 +694,7 @@ def reopen_complaint(tracking_id):
         return redirect(url_for('public.track_complaint', tracking_id=tracking_id))
 
     db.session.commit()
+    _invalidate_response_cache()
     log_action('COMPLAINT_REOPENED_BY_CITIZEN', details={
         'tracking_id': tracking_id,
         'reopen_count': complaint.reopen_count
@@ -633,6 +720,7 @@ def submit_feedback(tracking_id):
         return redirect(url_for('public.track_complaint', tracking_id=tracking_id))
 
     db.session.commit()
+    _invalidate_response_cache()
     log_action('CITIZEN_FEEDBACK_SUBMITTED', details={
         'tracking_id': tracking_id,
         'rating': complaint.citizen_rating
@@ -705,7 +793,14 @@ def get_services(department_id):
 def get_stats():
     """API endpoint for statistics (used by charts)."""
     maybe_run_sla_escalations()
-    return jsonify(Complaint.get_stats())
+    cache_key = ('stats',)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
+    payload = Complaint.get_stats()
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/dashboard/overview')
@@ -717,6 +812,11 @@ def get_dashboard_overview():
         filters = _parse_dashboard_filters(default_month_window=False)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+
+    cache_key = ('overview', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
 
     stats = _compute_dashboard_stats(filters)
     dept_stats, best_department, worst_department = _compute_department_stats(filters)
@@ -750,7 +850,7 @@ def get_dashboard_overview():
             )
         })
 
-    return jsonify({
+    payload = {
         'filters': {
             'department_id': filters.get('department_id'),
             'status': filters.get('status') or '',
@@ -763,7 +863,9 @@ def get_dashboard_overview():
         'worst_department': worst_department,
         'dept_stats': ranked_departments,
         'recent_complaints': recent_serialized,
-    })
+    }
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/chart/monthly')
@@ -773,6 +875,11 @@ def get_monthly_chart_data():
         filters = _parse_dashboard_filters(default_month_window=True)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+
+    cache_key = ('chart_monthly', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
 
     base_query = _apply_dashboard_filters(
         Complaint.query,
@@ -791,7 +898,9 @@ def get_monthly_chart_data():
         labels.append(month_start.strftime('%b %Y'))
         data.append(count)
 
-    return jsonify({'labels': labels, 'data': data})
+    payload = {'labels': labels, 'data': data}
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/chart/dept')
@@ -802,27 +911,38 @@ def get_dept_chart_data():
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
+    cache_key = ('chart_dept', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     departments_query = Department.query.order_by(Department.name.asc())
     if filters.get('department_id'):
         departments_query = departments_query.filter(Department.id == filters['department_id'])
     departments = departments_query.all()
 
+    counts = _apply_dashboard_filters(
+        db.session.query(
+            Complaint.department_id,
+            func.count(Complaint.id).label('total')
+        ),
+        filters,
+        include_time_window=True
+    ).group_by(Complaint.department_id).all()
+    counts_by_department = {int(row.department_id): int(row.total or 0) for row in counts}
+
     labels = []
     data = []
-    
     for dept in departments:
-        count = _apply_dashboard_filters(
-            Complaint.query.filter(Complaint.department_id == dept.id),
-            filters,
-            include_time_window=True
-        ).count()
         labels.append(dept.name)
-        data.append(count)
-    
-    return jsonify({
+        data.append(counts_by_department.get(int(dept.id), 0))
+
+    payload = {
         'labels': labels,
         'data': data
-    })
+    }
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/chart/status')
@@ -833,23 +953,30 @@ def get_status_chart_data():
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
-    base_query = _apply_dashboard_filters(
-        Complaint.query,
+    cache_key = ('chart_status', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
+    grouped_rows = _apply_dashboard_filters(
+        db.session.query(
+            Complaint.status,
+            func.count(Complaint.id).label('total')
+        ),
         filters,
         include_time_window=True
-    )
+    ).group_by(Complaint.status).all()
 
     statuses = DASHBOARD_STATUSES
-    data = []
-    
-    for status in statuses:
-        count = base_query.filter(Complaint.status == status).count()
-        data.append(count)
-    
-    return jsonify({
+    grouped_lookup = {row.status: int(row.total or 0) for row in grouped_rows}
+    data = [grouped_lookup.get(status, 0) for status in statuses]
+
+    payload = {
         'labels': statuses,
         'data': data
-    })
+    }
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/chart/resolution-time')
@@ -859,6 +986,11 @@ def get_resolution_time_chart_data():
         filters = _parse_dashboard_filters(default_month_window=True)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+
+    cache_key = ('chart_resolution_time', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
 
     base_query = _apply_dashboard_filters(
         Complaint.query.filter(Complaint.resolved_at.isnot(None)),
@@ -882,7 +1014,9 @@ def get_resolution_time_chart_data():
         labels.append(month_start.strftime('%b %Y'))
         values.append(avg_hours)
 
-    return jsonify({'labels': labels, 'data': values})
+    payload = {'labels': labels, 'data': values}
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/chart/sla-compliance')
@@ -892,6 +1026,11 @@ def get_sla_compliance_chart_data():
         filters = _parse_dashboard_filters(default_month_window=True)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+
+    cache_key = ('chart_sla_compliance', _filters_cache_key(filters))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
 
     base_query = _apply_dashboard_filters(
         Complaint.query.filter(Complaint.resolved_at.isnot(None)),
@@ -913,7 +1052,9 @@ def get_sla_compliance_chart_data():
         labels.append(month_start.strftime('%b %Y'))
         values.append(compliance)
 
-    return jsonify({'labels': labels, 'data': values})
+    payload = {'labels': labels, 'data': values}
+    _cache_set(cache_key, payload, _cache_ttl())
+    return jsonify(payload)
 
 
 @public_bp.route('/api/public/data')
@@ -994,11 +1135,16 @@ def get_geo_heatmap_data():
         requested_limit = max_points
     requested_limit = min(requested_limit, max_points * 2)
 
+    cache_key = ('geo_heatmap', int(requested_limit))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     complaints = Complaint.query.filter(
         Complaint.location_lat.isnot(None),
         Complaint.location_lng.isnot(None)
     ).order_by(Complaint.submitted_at.desc()).limit(requested_limit).all()
-    return jsonify([
+    payload = [
         {
             'lat': complaint.location_lat,
             'lng': complaint.location_lng,
@@ -1010,7 +1156,9 @@ def get_geo_heatmap_data():
             'city': complaint.city,
             'submitted_at': complaint.submitted_at.isoformat() if complaint.submitted_at else None
         } for complaint in complaints
-    ])
+    ]
+    _cache_set(cache_key, payload, _cache_ttl(0.8))
+    return jsonify(payload)
 
 
 @public_bp.route('/api/ai/assist', methods=['POST'])

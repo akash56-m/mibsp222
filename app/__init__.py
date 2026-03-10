@@ -111,6 +111,26 @@ def ensure_schema_compatibility(app, run_create_all=False):
             'location_lng': "FLOAT",
         },
     }
+    index_patches = [
+        (
+            'ix_complaints_department_status_submitted',
+            'complaints',
+            'CREATE INDEX IF NOT EXISTS ix_complaints_department_status_submitted '
+            'ON complaints (department_id, status, submitted_at)'
+        ),
+        (
+            'ix_complaints_resolved_status',
+            'complaints',
+            'CREATE INDEX IF NOT EXISTS ix_complaints_resolved_status '
+            'ON complaints (resolved_at, status)'
+        ),
+        (
+            'ix_complaints_submitted_geo',
+            'complaints',
+            'CREATE INDEX IF NOT EXISTS ix_complaints_submitted_geo '
+            'ON complaints (submitted_at, location_lat, location_lng)'
+        ),
+    ]
 
     try:
         inspector = inspect(db.engine)
@@ -157,6 +177,21 @@ def ensure_schema_compatibility(app, run_create_all=False):
                     "Schema patch failed for %s.%s", table_name, column_name
                 )
                 raise
+
+    for index_name, table_name, index_sql in index_patches:
+        if table_name not in existing_tables:
+            continue
+        try:
+            db.session.execute(text(index_sql))
+            app.logger.info('Schema index ensured: %s', index_name)
+        except Exception as exc:
+            db.session.rollback()
+            error_text = str(exc).lower()
+            if 'already exists' in error_text or 'duplicate key name' in error_text:
+                app.logger.info('Schema index already present: %s', index_name)
+                continue
+            app.logger.exception('Schema index patch failed: %s', index_name)
+            raise
 
     db.session.commit()
 
