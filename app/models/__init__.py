@@ -450,14 +450,6 @@ class Complaint(db.Model):
                 details=json.dumps(details)
             )
 
-            # Notify escalation stakeholders after commit succeeds.
-            try:
-                from app.tasks import send_status_update_notification
-                send_status_update_notification(complaint.tracking_id, complaint.status)
-            except Exception:
-                # Keep escalation flow resilient even if notification providers fail.
-                pass
-
         return len(escalated)
     
     @staticmethod
