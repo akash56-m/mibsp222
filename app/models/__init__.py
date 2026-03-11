@@ -4,8 +4,6 @@ All SQLAlchemy models for the Municipal Integrity & Bribe-Free Service Portal.
 """
 from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, case, and_
-from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 import hashlib
 import json
@@ -205,12 +203,6 @@ class Complaint(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     resolved_at = db.Column(db.DateTime, nullable=True)
     resolution_notes = db.Column(db.Text, nullable=True)
-
-    __table_args__ = (
-        db.Index('ix_complaints_department_status_submitted', 'department_id', 'status', 'submitted_at'),
-        db.Index('ix_complaints_resolved_status', 'resolved_at', 'status'),
-        db.Index('ix_complaints_submitted_geo', 'submitted_at', 'location_lat', 'location_lng'),
-    )
     
     # Valid status transitions
     VALID_STATUSES = ['Pending', 'Under Review', 'Action Taken', 'Delayed', 'Reopened', 'Closed']
@@ -266,17 +258,13 @@ class Complaint(db.Model):
         if not candidates:
             return None
 
-        candidate_ids = [candidate.id for candidate in candidates]
-        load_rows = db.session.query(
-            Complaint.assigned_to,
-            func.count(Complaint.id).label('open_count')
-        ).filter(
-            Complaint.assigned_to.in_(candidate_ids),
-            Complaint.status != 'Closed'
-        ).group_by(Complaint.assigned_to).all()
-        workload = {row.assigned_to: int(row.open_count or 0) for row in load_rows}
+        def load_count(user):
+            return Complaint.query.filter(
+                Complaint.assigned_to == user.id,
+                Complaint.status != 'Closed'
+            ).count()
 
-        assignee = min(candidates, key=lambda user: workload.get(user.id, 0))
+        assignee = min(candidates, key=load_count)
         self.assigned_to = assignee.id
         return assignee
     
@@ -407,29 +395,15 @@ class Complaint(db.Model):
         Returns number of complaints auto-escalated.
         """
         now = datetime.utcnow()
-        missing_due_items = Complaint.query.options(joinedload(Complaint.service)).filter(
-            Complaint.status.in_(Complaint.ACTIVE_STATUSES),
-            Complaint.sla_due_at.is_(None)
-        ).all()
-        overdue_items = Complaint.query.options(joinedload(Complaint.service)).filter(
-            Complaint.status.in_(Complaint.ACTIVE_STATUSES),
-            Complaint.sla_due_at.isnot(None),
-            Complaint.sla_due_at < now
-        ).all()
-
-        overdue_lookup = {item.id: item for item in overdue_items}
+        active = Complaint.query.filter(Complaint.status.in_(Complaint.ACTIVE_STATUSES)).all()
         escalated = []
         initialized_due_dates = False
 
-        for complaint in missing_due_items:
+        for complaint in active:
             before_due = complaint.sla_due_at
             complaint.initialize_sla_due()
             if before_due is None and complaint.sla_due_at is not None:
                 initialized_due_dates = True
-            if complaint.sla_due_at and complaint.sla_due_at < now:
-                overdue_lookup[complaint.id] = complaint
-
-        for complaint in overdue_lookup.values():
             if not complaint.sla_due_at or complaint.sla_due_at >= now:
                 continue
 
@@ -446,9 +420,10 @@ class Complaint(db.Model):
                 complaint.escalation_level += 1
                 changed = True
 
+            assignee = complaint.assign_by_escalation_hierarchy()
+            complaint.updated_at = now
+
             if changed:
-                assignee = complaint.assign_by_escalation_hierarchy()
-                complaint.updated_at = now
                 escalated.append((complaint, previous_status, previous_level, assignee))
 
         if not escalated and not initialized_due_dates:
@@ -475,41 +450,34 @@ class Complaint(db.Model):
                 details=json.dumps(details)
             )
 
+            # Notify escalation stakeholders after commit succeeds.
+            try:
+                from app.tasks import send_status_update_notification
+                send_status_update_notification(complaint.tracking_id, complaint.status)
+            except Exception:
+                # Keep escalation flow resilient even if notification providers fail.
+                pass
+
         return len(escalated)
     
     @staticmethod
     def get_stats():
         """Get aggregate statistics for dashboard."""
-        row = db.session.query(
-            func.count(Complaint.id).label('total'),
-            func.sum(case((Complaint.status == 'Pending', 1), else_=0)).label('pending'),
-            func.sum(case((Complaint.status == 'Under Review', 1), else_=0)).label('under_review'),
-            func.sum(case((Complaint.status == 'Action Taken', 1), else_=0)).label('action_taken'),
-            func.sum(case((Complaint.status == 'Delayed', 1), else_=0)).label('delayed'),
-            func.sum(case((Complaint.status == 'Reopened', 1), else_=0)).label('reopened'),
-            func.sum(case((Complaint.status == 'Closed', 1), else_=0)).label('closed'),
-            func.sum(case((Complaint.priority == 'High', 1), else_=0)).label('high_priority'),
-            func.sum(case((
-                and_(
-                    Complaint.status == 'Closed',
-                    Complaint.sla_due_at.isnot(None),
-                    Complaint.resolved_at.isnot(None),
-                    Complaint.resolved_at <= Complaint.sla_due_at
-                ),
-                1
-            ), else_=0)).label('within_sla')
-        ).one()
+        total = Complaint.query.count()
+        pending = Complaint.query.filter_by(status='Pending').count()
+        under_review = Complaint.query.filter_by(status='Under Review').count()
+        action_taken = Complaint.query.filter_by(status='Action Taken').count()
+        delayed = Complaint.query.filter_by(status='Delayed').count()
+        reopened = Complaint.query.filter_by(status='Reopened').count()
+        closed = Complaint.query.filter_by(status='Closed').count()
+        high_priority = Complaint.query.filter_by(priority='High').count()
 
-        total = int(row.total or 0)
-        pending = int(row.pending or 0)
-        under_review = int(row.under_review or 0)
-        action_taken = int(row.action_taken or 0)
-        delayed = int(row.delayed or 0)
-        reopened = int(row.reopened or 0)
-        closed = int(row.closed or 0)
-        high_priority = int(row.high_priority or 0)
-        within_sla = int(row.within_sla or 0)
-        sla_compliance = round((within_sla / closed * 100), 2) if closed else 0
+        closed_items = Complaint.query.filter_by(status='Closed').all()
+        within_sla = 0
+        for complaint in closed_items:
+            if complaint.resolved_at and complaint.initialize_sla_due() and complaint.resolved_at <= complaint.sla_due_at:
+                within_sla += 1
+        sla_compliance = round((within_sla / len(closed_items) * 100), 2) if closed_items else 0
         
         return {
             'total': total,
@@ -583,13 +551,12 @@ class AuditLog(db.Model):
 
         for log in logs:
             expected_previous = previous_hash
-            current_previous = log.previous_hash
 
             # Apply canonical previous hash before calculating row hash.
             log.previous_hash = expected_previous
             expected_hash = log.calculate_hash()
 
-            if current_previous != expected_previous or log.row_hash != expected_hash:
+            if log.previous_hash != expected_previous or log.row_hash != expected_hash:
                 repaired += 1
                 if not dry_run:
                     log.previous_hash = expected_previous
